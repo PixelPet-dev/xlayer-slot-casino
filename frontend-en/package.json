@@ -2,7 +2,7 @@
   "name": "xlayer-slot-english",
   "version": "1.0.0",
   "private": true,
-  "homepage": "https://pixelpet-dev.github.io/xlayer-slot-casino/",
+  "homepage": "./",
   "dependencies": {
     "react": "^18.2.0",
     "react-dom": "^18.2.0",
