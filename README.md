@@ -6,7 +6,35 @@ A professional blockchain-based slot machine game built on XLayer network with c
 ![Blockchain](https://img.shields.io/badge/Blockchain-Casino-blue?style=for-the-badge)
 ![Audio](https://img.shields.io/badge/Audio-System-green?style=for-the-badge)
 
+## 🌐 Live Demo
+
+**🎮 Play Now**: https://pixelpet-dev.github.io/xlayer-slot-casino/
+
+> 🚀 **Status**: Deploying... Please wait a few minutes for GitHub Pages to build and deploy the game.
+
 ## ✨ Features
+
+### 🎮 Core Game Features
+- **Blockchain-based Slot Machine** - Provably fair gaming on XLayer
+- **XLuckyCoin (XLC) Integration** - Native token for betting and rewards
+- **Real-time Prize Pool** - Live display of contract balance
+- **User Registration System** - Nickname-based player profiles
+- **Game History Tracking** - Complete transaction history
+- **Responsive Design** - Works on desktop and mobile
+
+### 🎵 Professional Audio System
+- **Background Music (BGM)** - Auto-play with user controls
+- **Sound Effects** - Win/lose audio with smart BGM management
+- **Audio Controls** - Play/pause, volume slider, mute button
+- **Fallback System** - Generated audio if files are missing
+- **Smart Audio Logic** - BGM pauses during effects, auto-resumes
+
+### 🎨 User Interface
+- **OKX Theme Design** - Professional dark theme
+- **Logo Integration** - Custom branding
+- **Real-time Updates** - Live balance and prize pool
+- **Intuitive Controls** - Easy-to-use interface
+- **Status Indicators** - Clear game state feedback
 
 - 🎰 **水果机抽奖游戏**
 - 💰 **直接代币下注**
