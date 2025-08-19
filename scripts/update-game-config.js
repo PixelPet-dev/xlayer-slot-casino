@@ -13,7 +13,7 @@ async function main() {
   console.log("✅ Web3 连接成功");
   
   // 合约地址和 ABI
-  const contractAddress = process.env.CONTRACT_ADDRESS || '0xF6637254Cceb1484Db01B57f90DdB0B6094e4407';
+  const contractAddress = process.env.CONTRACT_ADDRESS || '0x7415e413f49f0AE94D741b8d9D3cBAA362EF1099';
   const contractArtifact = require('../artifacts/contracts/LotteryGame.sol/LotteryGame.json');
   const LOTTERY_GAME_ABI = contractArtifact.abi;
   
@@ -37,8 +37,8 @@ async function main() {
   
   // 新的游戏配置
   const newConfig = {
-    minBet: web3.utils.toWei('30000', 'ether'),      // 最小下注: 30,000 tokens
-    maxBet: web3.utils.toWei('2000000', 'ether'),    // 最大下注: 2,000,000 tokens
+    minBet: web3.utils.toWei('30000', 'ether'),      // 最小下注: 30,000 XLC
+    maxBet: web3.utils.toWei('1000000', 'ether'),    // 最大下注: 1,000,000 XLC
     houseFeePercentage: 500,                         // 平台费用: 5% (500/10000)
     isActive: true                                   // 游戏激活状态
   };

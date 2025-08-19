@@ -9,7 +9,7 @@ async function main() {
   const web3 = new Web3('https://rpc.xlayer.tech');
   
   // 合约地址和 ABI
-  const contractAddress = process.env.CONTRACT_ADDRESS || '0xF6637254Cceb1484Db01B57f90DdB0B6094e4407';
+  const contractAddress = process.env.CONTRACT_ADDRESS || '0x7415e413f49f0AE94D741b8d9D3cBAA362EF1099';
   const contractArtifact = require('../artifacts/contracts/LotteryGame.sol/LotteryGame.json');
   const LOTTERY_GAME_ABI = contractArtifact.abi;
   
