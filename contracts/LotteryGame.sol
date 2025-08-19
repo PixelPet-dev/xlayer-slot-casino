@@ -61,9 +61,7 @@ contract LotteryGame is Ownable, Pausable, ReentrancyGuard {
     uint256 public totalUsers;
     uint256 private nonce;
 
-    // 时间锁机制
-    uint256 public constant TIMELOCK_DELAY = 24 hours;
-    mapping(bytes32 => uint256) public pendingChanges;
+
 
     // 排行榜数据
     address[] public topBettors;      // 下注排行榜
@@ -75,6 +73,9 @@ contract LotteryGame is Ownable, Pausable, ReentrancyGuard {
     // 紧急机制
     bool public emergencyMode = false;
     mapping(address => mapping(address => uint256)) public emergencyWithdrawals; // 用户在各代币中的紧急提取额度
+
+    // 开发模式 (生产环境应设为false)
+    bool public developmentMode = true;  // 开发环境设为true
     
     // 事件
     event TokenContractUpdated(address indexed oldToken, address indexed newToken);
@@ -91,10 +92,7 @@ contract LotteryGame is Ownable, Pausable, ReentrancyGuard {
     event QuickBetOptionsUpdated(uint256[] options);
     event GameConfigUpdated(uint256 minBet, uint256 maxBet, uint256 houseFee, bool isActive);
 
-    // 时间锁事件
-    event ChangeProposed(bytes32 indexed changeId, string changeType, uint256 executeTime);
-    event ChangeExecuted(bytes32 indexed changeId, string changeType);
-    event ChangeCancelled(bytes32 indexed changeId, string changeType);
+
 
     // 排行榜事件
     event LeaderboardUpdated(address indexed player, string boardType, uint256 newRank, uint256 amount);
@@ -144,43 +142,16 @@ contract LotteryGame is Ownable, Pausable, ReentrancyGuard {
     }
     
     /**
-     * @dev 提议更换代币合约 (需要时间锁)
+     * @dev 更换代币合约 (仅所有者)
      */
-    function proposeTokenUpdate(address _newTokenContract) external onlyOwner {
+    function updateTokenContract(address _newTokenContract) external onlyOwner {
         require(_newTokenContract != address(0), "New token contract cannot be zero address");
         require(_newTokenContract != address(currentToken), "Same token contract");
-
-        bytes32 changeId = keccak256(abi.encodePacked("TOKEN_UPDATE", _newTokenContract, block.timestamp));
-        uint256 executeTime = block.timestamp + TIMELOCK_DELAY;
-        pendingChanges[changeId] = executeTime;
-
-        emit ChangeProposed(changeId, "TOKEN_UPDATE", executeTime);
-    }
-
-    /**
-     * @dev 执行代币合约更换
-     */
-    function executeTokenUpdate(address _newTokenContract, uint256 proposalTime) external onlyOwner {
-        bytes32 changeId = keccak256(abi.encodePacked("TOKEN_UPDATE", _newTokenContract, proposalTime));
-        require(pendingChanges[changeId] != 0, "Change not proposed");
-        require(block.timestamp >= pendingChanges[changeId], "Timelock not expired");
-
-        delete pendingChanges[changeId];
 
         address oldToken = address(currentToken);
         currentToken = IERC20(_newTokenContract);
 
-        emit ChangeExecuted(changeId, "TOKEN_UPDATE");
         emit TokenContractUpdated(oldToken, _newTokenContract);
-    }
-
-    /**
-     * @dev 取消待执行的更改
-     */
-    function cancelChange(bytes32 changeId) external onlyOwner {
-        require(pendingChanges[changeId] != 0, "Change not found");
-        delete pendingChanges[changeId];
-        emit ChangeCancelled(changeId, "CHANGE_CANCELLED");
     }
     
     /**
