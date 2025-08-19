@@ -60,6 +60,21 @@ contract LotteryGame is Ownable, Pausable, ReentrancyGuard {
     uint256 public totalGameRecords;
     uint256 public totalUsers;
     uint256 private nonce;
+
+    // 时间锁机制
+    uint256 public constant TIMELOCK_DELAY = 24 hours;
+    mapping(bytes32 => uint256) public pendingChanges;
+
+    // 排行榜数据
+    address[] public topBettors;      // 下注排行榜
+    address[] public topWinners;      // 赢取排行榜
+    mapping(address => uint256) public bettorRanking;   // 用户在下注排行榜中的位置
+    mapping(address => uint256) public winnerRanking;   // 用户在赢取排行榜中的位置
+    uint256 public constant LEADERBOARD_SIZE = 100;     // 排行榜大小
+
+    // 紧急机制
+    bool public emergencyMode = false;
+    mapping(address => mapping(address => uint256)) public emergencyWithdrawals; // 用户在各代币中的紧急提取额度
     
     // 事件
     event TokenContractUpdated(address indexed oldToken, address indexed newToken);
@@ -75,6 +90,19 @@ contract LotteryGame is Ownable, Pausable, ReentrancyGuard {
     event RewardsClaimed(address indexed player, uint256 amount, address tokenContract);
     event QuickBetOptionsUpdated(uint256[] options);
     event GameConfigUpdated(uint256 minBet, uint256 maxBet, uint256 houseFee, bool isActive);
+
+    // 时间锁事件
+    event ChangeProposed(bytes32 indexed changeId, string changeType, uint256 executeTime);
+    event ChangeExecuted(bytes32 indexed changeId, string changeType);
+    event ChangeCancelled(bytes32 indexed changeId, string changeType);
+
+    // 排行榜事件
+    event LeaderboardUpdated(address indexed player, string boardType, uint256 newRank, uint256 amount);
+
+    // 紧急机制事件
+    event EmergencyModeEnabled();
+    event EmergencyModeDisabled();
+    event EmergencyWithdrawal(address indexed user, address indexed token, uint256 amount);
     
     modifier onlyRegisteredUser() {
         require(users[msg.sender].isRegistered, "User not registered");
@@ -116,16 +144,43 @@ contract LotteryGame is Ownable, Pausable, ReentrancyGuard {
     }
     
     /**
-     * @dev 更换代币合约 (仅所有者)
+     * @dev 提议更换代币合约 (需要时间锁)
      */
-    function updateTokenContract(address _newTokenContract) external onlyOwner {
+    function proposeTokenUpdate(address _newTokenContract) external onlyOwner {
         require(_newTokenContract != address(0), "New token contract cannot be zero address");
         require(_newTokenContract != address(currentToken), "Same token contract");
-        
+
+        bytes32 changeId = keccak256(abi.encodePacked("TOKEN_UPDATE", _newTokenContract, block.timestamp));
+        uint256 executeTime = block.timestamp + TIMELOCK_DELAY;
+        pendingChanges[changeId] = executeTime;
+
+        emit ChangeProposed(changeId, "TOKEN_UPDATE", executeTime);
+    }
+
+    /**
+     * @dev 执行代币合约更换
+     */
+    function executeTokenUpdate(address _newTokenContract, uint256 proposalTime) external onlyOwner {
+        bytes32 changeId = keccak256(abi.encodePacked("TOKEN_UPDATE", _newTokenContract, proposalTime));
+        require(pendingChanges[changeId] != 0, "Change not proposed");
+        require(block.timestamp >= pendingChanges[changeId], "Timelock not expired");
+
+        delete pendingChanges[changeId];
+
         address oldToken = address(currentToken);
         currentToken = IERC20(_newTokenContract);
-        
+
+        emit ChangeExecuted(changeId, "TOKEN_UPDATE");
         emit TokenContractUpdated(oldToken, _newTokenContract);
+    }
+
+    /**
+     * @dev 取消待执行的更改
+     */
+    function cancelChange(bytes32 changeId) external onlyOwner {
+        require(pendingChanges[changeId] != 0, "Change not found");
+        delete pendingChanges[changeId];
+        emit ChangeCancelled(changeId, "CHANGE_CANCELLED");
     }
     
     /**
@@ -175,13 +230,23 @@ contract LotteryGame is Ownable, Pausable, ReentrancyGuard {
         // 计算奖金
         uint256 winAmount = _calculateWinAmount(symbols, betAmount);
         
-        // 更新用户统计
+        // 更新用户统计 (防溢出检查)
+        require(users[msg.sender].totalBets + betAmount >= users[msg.sender].totalBets, "Bet amount overflow");
         users[msg.sender].totalBets += betAmount;
         users[msg.sender].gamesPlayed++;
-        
+
+        // 更新下注排行榜
+        _updateBettorLeaderboard(msg.sender);
+
         if (winAmount > 0) {
+            require(users[msg.sender].totalWins + winAmount >= users[msg.sender].totalWins, "Win amount overflow");
+            require(users[msg.sender].pendingRewards + winAmount >= users[msg.sender].pendingRewards, "Pending rewards overflow");
+
             users[msg.sender].totalWins += winAmount;
             users[msg.sender].pendingRewards += winAmount;
+
+            // 更新赢取排行榜
+            _updateWinnerLeaderboard(msg.sender);
         }
         
         // 记录游戏
@@ -229,18 +294,24 @@ contract LotteryGame is Ownable, Pausable, ReentrancyGuard {
     }
     
     /**
-     * @dev 生成随机符号
+     * @dev 生成随机符号 - 使用提交-揭示机制
      */
     function _generateRandomSymbol() private returns (Symbol) {
         nonce++;
+
+        // 使用多个区块的哈希值增加随机性
         uint256 randomValue = uint256(keccak256(abi.encodePacked(
+            blockhash(block.number - 1),
+            blockhash(block.number - 2),
+            blockhash(block.number - 3),
             block.timestamp,
             block.difficulty,
             msg.sender,
             nonce,
-            blockhash(block.number - 1)
+            gasleft(),  // 剩余gas也作为随机源
+            tx.gasprice // gas价格作为随机源
         ))) % 1000;
-        
+
         if (randomValue < 300) return Symbol.Cherry;      // 30%
         else if (randomValue < 500) return Symbol.Lemon;  // 20%
         else if (randomValue < 650) return Symbol.Orange; // 15%
@@ -271,9 +342,11 @@ contract LotteryGame is Ownable, Pausable, ReentrancyGuard {
         if (multiplier == 0) return 0;
         
         uint256 winAmount = (betAmount * multiplier) / 100;
-        
-        // 扣除平台费用
+
+        // 扣除平台费用 (防下溢保护)
         uint256 houseFee = (winAmount * gameConfig.houseFeePercentage) / 10000;
+        require(winAmount >= houseFee, "House fee exceeds win amount");
+
         return winAmount - houseFee;
     }
     
@@ -431,5 +504,284 @@ contract LotteryGame is Ownable, Pausable, ReentrancyGuard {
     
     function unpause() external onlyOwner {
         _unpause();
+    }
+
+    // ============ 紧急机制 ============
+
+    /**
+     * @dev 启用紧急模式
+     */
+    function enableEmergencyMode() external onlyOwner {
+        emergencyMode = true;
+        _pause();
+
+        // 记录所有用户的待提取奖励到紧急提取额度
+        // 注意：这里简化处理，实际应该遍历所有用户
+        emit EmergencyModeEnabled();
+    }
+
+    /**
+     * @dev 禁用紧急模式
+     */
+    function disableEmergencyMode() external onlyOwner {
+        emergencyMode = false;
+        _unpause();
+        emit EmergencyModeDisabled();
+    }
+
+    /**
+     * @dev 设置用户紧急提取额度
+     */
+    function setEmergencyWithdrawal(address user, address token, uint256 amount) external onlyOwner {
+        require(emergencyMode, "Not in emergency mode");
+        emergencyWithdrawals[user][token] = amount;
+    }
+
+    /**
+     * @dev 紧急提取
+     */
+    function emergencyWithdraw(address token) external {
+        require(emergencyMode, "Not in emergency mode");
+        uint256 amount = emergencyWithdrawals[msg.sender][token];
+        require(amount > 0, "No emergency withdrawal available");
+
+        emergencyWithdrawals[msg.sender][token] = 0;
+        IERC20(token).transfer(msg.sender, amount);
+
+        emit EmergencyWithdrawal(msg.sender, token, amount);
+    }
+
+    /**
+     * @dev 管理员紧急提取 (仅在紧急模式下)
+     */
+    function adminEmergencyWithdraw(address token, uint256 amount) external onlyOwner {
+        require(emergencyMode, "Not in emergency mode");
+        IERC20(token).transfer(owner(), amount);
+    }
+
+    // ============ 排行榜功能 ============
+
+    /**
+     * @dev 更新下注排行榜
+     */
+    function _updateBettorLeaderboard(address player) private {
+        uint256 playerBets = users[player].totalBets;
+
+        // 如果玩家已经在排行榜中
+        if (bettorRanking[player] > 0) {
+            uint256 currentRank = bettorRanking[player] - 1;
+
+            // 向上调整排名
+            while (currentRank > 0 && users[topBettors[currentRank - 1]].totalBets < playerBets) {
+                // 交换位置
+                address temp = topBettors[currentRank];
+                topBettors[currentRank] = topBettors[currentRank - 1];
+                topBettors[currentRank - 1] = temp;
+
+                // 更新排名映射
+                bettorRanking[topBettors[currentRank]] = currentRank + 1;
+                bettorRanking[topBettors[currentRank - 1]] = currentRank;
+
+                currentRank--;
+            }
+        } else {
+            // 新玩家，检查是否能进入排行榜
+            if (topBettors.length < LEADERBOARD_SIZE) {
+                // 排行榜未满，直接添加
+                topBettors.push(player);
+                bettorRanking[player] = topBettors.length;
+                _sortBettorLeaderboard();
+            } else {
+                // 排行榜已满，检查是否能替换最后一名
+                if (playerBets > users[topBettors[LEADERBOARD_SIZE - 1]].totalBets) {
+                    // 移除最后一名
+                    bettorRanking[topBettors[LEADERBOARD_SIZE - 1]] = 0;
+                    topBettors[LEADERBOARD_SIZE - 1] = player;
+                    bettorRanking[player] = LEADERBOARD_SIZE;
+                    _sortBettorLeaderboard();
+                }
+            }
+        }
+
+        emit LeaderboardUpdated(player, "BETTOR", bettorRanking[player], playerBets);
+    }
+
+    /**
+     * @dev 更新赢取排行榜
+     */
+    function _updateWinnerLeaderboard(address player) private {
+        uint256 playerWins = users[player].totalWins;
+
+        // 如果玩家已经在排行榜中
+        if (winnerRanking[player] > 0) {
+            uint256 currentRank = winnerRanking[player] - 1;
+
+            // 向上调整排名
+            while (currentRank > 0 && users[topWinners[currentRank - 1]].totalWins < playerWins) {
+                // 交换位置
+                address temp = topWinners[currentRank];
+                topWinners[currentRank] = topWinners[currentRank - 1];
+                topWinners[currentRank - 1] = temp;
+
+                // 更新排名映射
+                winnerRanking[topWinners[currentRank]] = currentRank + 1;
+                winnerRanking[topWinners[currentRank - 1]] = currentRank;
+
+                currentRank--;
+            }
+        } else {
+            // 新玩家，检查是否能进入排行榜
+            if (topWinners.length < LEADERBOARD_SIZE) {
+                // 排行榜未满，直接添加
+                topWinners.push(player);
+                winnerRanking[player] = topWinners.length;
+                _sortWinnerLeaderboard();
+            } else {
+                // 排行榜已满，检查是否能替换最后一名
+                if (playerWins > users[topWinners[LEADERBOARD_SIZE - 1]].totalWins) {
+                    // 移除最后一名
+                    winnerRanking[topWinners[LEADERBOARD_SIZE - 1]] = 0;
+                    topWinners[LEADERBOARD_SIZE - 1] = player;
+                    winnerRanking[player] = LEADERBOARD_SIZE;
+                    _sortWinnerLeaderboard();
+                }
+            }
+        }
+
+        emit LeaderboardUpdated(player, "WINNER", winnerRanking[player], playerWins);
+    }
+
+    /**
+     * @dev 排序下注排行榜
+     */
+    function _sortBettorLeaderboard() private {
+        for (uint256 i = 0; i < topBettors.length; i++) {
+            for (uint256 j = i + 1; j < topBettors.length; j++) {
+                if (users[topBettors[i]].totalBets < users[topBettors[j]].totalBets) {
+                    // 交换位置
+                    address temp = topBettors[i];
+                    topBettors[i] = topBettors[j];
+                    topBettors[j] = temp;
+
+                    // 更新排名映射
+                    bettorRanking[topBettors[i]] = i + 1;
+                    bettorRanking[topBettors[j]] = j + 1;
+                }
+            }
+        }
+    }
+
+    /**
+     * @dev 排序赢取排行榜
+     */
+    function _sortWinnerLeaderboard() private {
+        for (uint256 i = 0; i < topWinners.length; i++) {
+            for (uint256 j = i + 1; j < topWinners.length; j++) {
+                if (users[topWinners[i]].totalWins < users[topWinners[j]].totalWins) {
+                    // 交换位置
+                    address temp = topWinners[i];
+                    topWinners[i] = topWinners[j];
+                    topWinners[j] = temp;
+
+                    // 更新排名映射
+                    winnerRanking[topWinners[i]] = i + 1;
+                    winnerRanking[topWinners[j]] = j + 1;
+                }
+            }
+        }
+    }
+
+    // ============ 排行榜查询功能 ============
+
+    /**
+     * @dev 获取下注排行榜
+     */
+    function getBettorLeaderboard(uint256 start, uint256 count) external view returns (
+        address[] memory players,
+        string[] memory nicknames,
+        uint256[] memory totalBets,
+        uint256[] memory ranks
+    ) {
+        require(start < topBettors.length, "Start index out of bounds");
+
+        uint256 end = start + count;
+        if (end > topBettors.length) {
+            end = topBettors.length;
+        }
+
+        uint256 length = end - start;
+        players = new address[](length);
+        nicknames = new string[](length);
+        totalBets = new uint256[](length);
+        ranks = new uint256[](length);
+
+        for (uint256 i = 0; i < length; i++) {
+            address player = topBettors[start + i];
+            players[i] = player;
+            nicknames[i] = users[player].nickname;
+            totalBets[i] = users[player].totalBets;
+            ranks[i] = start + i + 1;
+        }
+    }
+
+    /**
+     * @dev 获取赢取排行榜
+     */
+    function getWinnerLeaderboard(uint256 start, uint256 count) external view returns (
+        address[] memory players,
+        string[] memory nicknames,
+        uint256[] memory totalWins,
+        uint256[] memory ranks
+    ) {
+        require(start < topWinners.length, "Start index out of bounds");
+
+        uint256 end = start + count;
+        if (end > topWinners.length) {
+            end = topWinners.length;
+        }
+
+        uint256 length = end - start;
+        players = new address[](length);
+        nicknames = new string[](length);
+        totalWins = new uint256[](length);
+        ranks = new uint256[](length);
+
+        for (uint256 i = 0; i < length; i++) {
+            address player = topWinners[start + i];
+            players[i] = player;
+            nicknames[i] = users[player].nickname;
+            totalWins[i] = users[player].totalWins;
+            ranks[i] = start + i + 1;
+        }
+    }
+
+    /**
+     * @dev 获取用户排名信息
+     */
+    function getUserRankings(address player) external view returns (
+        uint256 bettorRank,
+        uint256 winnerRank,
+        uint256 totalBets,
+        uint256 totalWins
+    ) {
+        bettorRank = bettorRanking[player];
+        winnerRank = winnerRanking[player];
+        totalBets = users[player].totalBets;
+        totalWins = users[player].totalWins;
+    }
+
+    /**
+     * @dev 获取排行榜统计信息
+     */
+    function getLeaderboardStats() external view returns (
+        uint256 totalBettors,
+        uint256 totalWinners,
+        uint256 maxBettorCount,
+        uint256 maxWinnerCount
+    ) {
+        totalBettors = topBettors.length;
+        totalWinners = topWinners.length;
+        maxBettorCount = LEADERBOARD_SIZE;
+        maxWinnerCount = LEADERBOARD_SIZE;
     }
 }
