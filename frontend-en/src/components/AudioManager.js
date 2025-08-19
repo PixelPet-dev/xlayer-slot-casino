@@ -2,8 +2,7 @@ import React, { useState, useEffect, useRef } from 'react';
 import { playSpinSoundEffect, playWinSoundEffect, playLoseSoundEffect, playJackpotSoundEffect, createKungFuBGM } from '../utils/audioUtils';
 
 const AudioManager = React.forwardRef(({ isPlaying, onToggle }, ref) => {
-  const [isMuted, setIsMuted] = useState(false);
-  const [volume, setVolume] = useState(0.3); // 默认音量30%
+  const [volume] = useState(0.3); // 固定音量30%
   const [bgmLoaded, setBgmLoaded] = useState(false);
   const [currentlyPlaying, setCurrentlyPlaying] = useState('none'); // 'bgm', 'win', 'lose', 'none'
   const bgmRef = useRef(null);
@@ -83,12 +82,6 @@ const AudioManager = React.forwardRef(({ isPlaying, onToggle }, ref) => {
 
   // 控制音频播放状态
   useEffect(() => {
-    if (isMuted) {
-      // 静音时停止所有音频
-      stopAllAudio();
-      return;
-    }
-
     if (!isPlaying) {
       // BGM关闭时停止所有音频
       stopAllAudio();
@@ -113,7 +106,7 @@ const AudioManager = React.forwardRef(({ isPlaying, onToggle }, ref) => {
         }
         break;
     }
-  }, [isPlaying, isMuted, bgmLoaded, currentlyPlaying]);
+  }, [isPlaying, bgmLoaded, currentlyPlaying]);
 
   // 播放BGM
   const playBGM = () => {
@@ -161,22 +154,22 @@ const AudioManager = React.forwardRef(({ isPlaying, onToggle }, ref) => {
   // 更新音量
   useEffect(() => {
     if (bgmRef.current) {
-      bgmRef.current.volume = isMuted ? 0 : volume;
+      bgmRef.current.volume = volume;
     }
     if (spinSoundRef.current) {
-      spinSoundRef.current.volume = isMuted ? 0 : volume * 0.8;
+      spinSoundRef.current.volume = volume * 0.8;
     }
     if (winSoundRef.current) {
-      winSoundRef.current.volume = isMuted ? 0 : volume;
+      winSoundRef.current.volume = volume;
     }
     if (loseSoundRef.current) {
-      loseSoundRef.current.volume = isMuted ? 0 : volume;
+      loseSoundRef.current.volume = volume;
     }
-  }, [volume, isMuted]);
+  }, [volume]);
 
   // 播放音效的方法
   const playSpinSound = () => {
-    if (isMuted || !isPlaying) return;
+    if (!isPlaying) return;
 
     if (spinSoundRef.current) {
       spinSoundRef.current.currentTime = 0;
@@ -191,9 +184,9 @@ const AudioManager = React.forwardRef(({ isPlaying, onToggle }, ref) => {
 
   // 播放中奖音效 (暂停BGM，播放完毕后恢复)
   const playWinSound = () => {
-    console.log('🎉 playWinSound 被调用', { isMuted, isPlaying });
-    if (isMuted || !isPlaying) {
-      console.log('🔇 音效被跳过 - 静音或BGM关闭');
+    console.log('🎉 playWinSound 被调用', { isPlaying });
+    if (!isPlaying) {
+      console.log('🔇 音效被跳过 - BGM关闭');
       return;
     }
 
@@ -221,9 +214,9 @@ const AudioManager = React.forwardRef(({ isPlaying, onToggle }, ref) => {
 
   // 播放未中奖音效 (暂停BGM，播放完毕后恢复)
   const playLoseSound = () => {
-    console.log('😔 playLoseSound 被调用', { isMuted, isPlaying });
-    if (isMuted || !isPlaying) {
-      console.log('🔇 音效被跳过 - 静音或BGM关闭');
+    console.log('😔 playLoseSound 被调用', { isPlaying });
+    if (!isPlaying) {
+      console.log('🔇 音效被跳过 - BGM关闭');
       return;
     }
 
@@ -267,83 +260,27 @@ const AudioManager = React.forwardRef(({ isPlaying, onToggle }, ref) => {
     console.log('🎵 音频管理器实例已设置');
   }, [playSpinSound, playWinSound, playLoseSound]);
 
-  const toggleMute = () => {
-    setIsMuted(!isMuted);
-  };
 
-  const handleVolumeChange = (e) => {
-    setVolume(parseFloat(e.target.value));
-  };
 
   return (
-    <div className="fixed top-4 right-4 z-50 bg-okx-dark/90 backdrop-blur-sm rounded-xl p-4 border border-okx-border">
-      <div className="flex items-center space-x-3">
-        {/* BGM控制按钮 */}
-        <button
-          onClick={onToggle}
-          className={`p-2 rounded-lg transition-colors ${
-            isPlaying 
-              ? 'bg-green-500/20 text-green-400 hover:bg-green-500/30' 
-              : 'bg-gray-500/20 text-gray-400 hover:bg-gray-500/30'
-          }`}
-          title={isPlaying ? '暂停BGM' : '播放BGM'}
-        >
+    <div className="fixed top-4 right-4 z-50 bg-okx-dark/90 backdrop-blur-sm rounded-lg p-3 border border-okx-border">
+      {/* 简化的播放/暂停按钮 */}
+      <button
+        onClick={onToggle}
+        className={`flex items-center space-x-2 px-3 py-2 rounded-lg transition-all duration-200 ${
+          isPlaying
+            ? 'bg-green-500/20 text-green-400 hover:bg-green-500/30'
+            : 'bg-gray-500/20 text-gray-400 hover:bg-gray-500/30'
+        }`}
+        title={isPlaying ? 'Pause BGM' : 'Play BGM'}
+      >
+        <span className="text-lg">
           {isPlaying ? '⏸️' : '▶️'}
-        </button>
-
-        {/* 静音按钮 */}
-        <button
-          onClick={toggleMute}
-          className={`p-2 rounded-lg transition-colors ${
-            isMuted 
-              ? 'bg-red-500/20 text-red-400 hover:bg-red-500/30' 
-              : 'bg-blue-500/20 text-blue-400 hover:bg-blue-500/30'
-          }`}
-          title={isMuted ? '取消静音' : '静音'}
-        >
-          {isMuted ? '🔇' : '🔊'}
-        </button>
-
-        {/* 音量滑块 */}
-        <div className="flex items-center space-x-2">
-          <span className="text-xs text-okx-muted">🎵</span>
-          <input
-            type="range"
-            min="0"
-            max="1"
-            step="0.1"
-            value={volume}
-            onChange={handleVolumeChange}
-            className="w-16 h-1 bg-okx-gray rounded-lg appearance-none cursor-pointer slider"
-            style={{
-              background: `linear-gradient(to right, #3b82f6 0%, #3b82f6 ${volume * 100}%, #374151 ${volume * 100}%, #374151 100%)`
-            }}
-          />
-          <span className="text-xs text-okx-muted w-8">{Math.round(volume * 100)}%</span>
-        </div>
-
-        {/* BGM标题和状态 */}
-        <div className="text-xs text-okx-muted">
-          <div>🎵 游戏BGM</div>
-          <div className="text-xs text-gray-500">
-            {bgmLoaded ? '音频文件' : '生成音效'}
-          </div>
-          {isPlaying && (
-            <div className="flex items-center space-x-1 mt-1">
-              <div className={`w-1 h-1 rounded-full animate-pulse ${
-                currentlyPlaying === 'bgm' ? 'bg-green-400' :
-                currentlyPlaying === 'win' ? 'bg-yellow-400' :
-                currentlyPlaying === 'lose' ? 'bg-red-400' : 'bg-gray-400'
-              }`}></div>
-              <span className="text-xs">
-                {currentlyPlaying === 'bgm' ? 'BGM播放中' :
-                 currentlyPlaying === 'win' ? '中奖音效' :
-                 currentlyPlaying === 'lose' ? '未中奖音效' : '待机'}
-              </span>
-            </div>
-          )}
-        </div>
-      </div>
+        </span>
+        <span className="text-xs text-okx-muted">
+          {isPlaying ? 'BGM' : 'BGM'}
+        </span>
+      </button>
     </div>
   );
 });
