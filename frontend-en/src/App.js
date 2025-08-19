@@ -15,9 +15,9 @@ const XLAYER_CONFIG = {
   blockExplorerUrls: ['https://www.oklink.com/xlayer'],
 };
 
-// Contract Configuration
+// Contract Configuration - Updated with new security features and leaderboards
 const CONTRACT_CONFIG = {
-  address: '0xF6637254Cceb1484Db01B57f90DdB0B6094e4407',
+  address: '0xF6637254Cceb1484Db01B57f90DdB0B6094e4407', // 🔄 Update this with your new contract address
   tokenAddress: '0x798095d5BF06edeF0aEB82c10DCDa5a92f58834E',
   abi: [
     {
@@ -60,6 +60,76 @@ const CONTRACT_CONFIG = {
       "inputs": [],
       "name": "currentToken",
       "outputs": [{"internalType": "contract IERC20", "name": "", "type": "address"}],
+      "stateMutability": "view",
+      "type": "function"
+    },
+    // 🏆 New Leaderboard Functions
+    {
+      "inputs": [
+        {"internalType": "uint256", "name": "start", "type": "uint256"},
+        {"internalType": "uint256", "name": "count", "type": "uint256"}
+      ],
+      "name": "getBettorLeaderboard",
+      "outputs": [
+        {"internalType": "address[]", "name": "players", "type": "address[]"},
+        {"internalType": "string[]", "name": "nicknames", "type": "string[]"},
+        {"internalType": "uint256[]", "name": "totalBets", "type": "uint256[]"},
+        {"internalType": "uint256[]", "name": "ranks", "type": "uint256[]"}
+      ],
+      "stateMutability": "view",
+      "type": "function"
+    },
+    {
+      "inputs": [
+        {"internalType": "uint256", "name": "start", "type": "uint256"},
+        {"internalType": "uint256", "name": "count", "type": "uint256"}
+      ],
+      "name": "getWinnerLeaderboard",
+      "outputs": [
+        {"internalType": "address[]", "name": "players", "type": "address[]"},
+        {"internalType": "string[]", "name": "nicknames", "type": "string[]"},
+        {"internalType": "uint256[]", "name": "totalWins", "type": "uint256[]"},
+        {"internalType": "uint256[]", "name": "ranks", "type": "uint256[]"}
+      ],
+      "stateMutability": "view",
+      "type": "function"
+    },
+    {
+      "inputs": [{"internalType": "address", "name": "player", "type": "address"}],
+      "name": "getUserRankings",
+      "outputs": [
+        {"internalType": "uint256", "name": "bettorRank", "type": "uint256"},
+        {"internalType": "uint256", "name": "winnerRank", "type": "uint256"},
+        {"internalType": "uint256", "name": "totalBets", "type": "uint256"},
+        {"internalType": "uint256", "name": "totalWins", "type": "uint256"}
+      ],
+      "stateMutability": "view",
+      "type": "function"
+    },
+    {
+      "inputs": [],
+      "name": "getLeaderboardStats",
+      "outputs": [
+        {"internalType": "uint256", "name": "totalBettors", "type": "uint256"},
+        {"internalType": "uint256", "name": "totalWinners", "type": "uint256"},
+        {"internalType": "uint256", "name": "maxBettorCount", "type": "uint256"},
+        {"internalType": "uint256", "name": "maxWinnerCount", "type": "uint256"}
+      ],
+      "stateMutability": "view",
+      "type": "function"
+    },
+    // 🛡️ Security Functions
+    {
+      "inputs": [{"internalType": "address", "name": "_newTokenContract", "type": "address"}],
+      "name": "updateTokenContract",
+      "outputs": [],
+      "stateMutability": "nonpayable",
+      "type": "function"
+    },
+    {
+      "inputs": [],
+      "name": "emergencyMode",
+      "outputs": [{"internalType": "bool", "name": "", "type": "bool"}],
       "stateMutability": "view",
       "type": "function"
     }
@@ -131,6 +201,14 @@ function App() {
   const [gameResult, setGameResult] = useState(null);
   const [contractBalance, setContractBalance] = useState('0'); // 合约奖池余额
 
+  // 🏆 排行榜相关状态
+  const [bettorLeaderboard, setBettorLeaderboard] = useState([]);
+  const [winnerLeaderboard, setWinnerLeaderboard] = useState([]);
+  const [userRankings, setUserRankings] = useState(null);
+  const [leaderboardStats, setLeaderboardStats] = useState(null);
+  const [showLeaderboard, setShowLeaderboard] = useState(false);
+  const [activeLeaderboardTab, setActiveLeaderboardTab] = useState('bettors'); // 'bettors' or 'winners'
+
   // 音频相关状态
   const [isBgmPlaying, setIsBgmPlaying] = useState(true); // 默认开启BGM
   const audioManagerRef = useRef(null);
@@ -199,6 +277,9 @@ function App() {
         // Load user data and contract balance
         await loadUserData(accounts[0], gameContract, token);
         await loadContractBalance(gameContract, token);
+
+        // Load leaderboard data
+        await loadLeaderboardData();
 
       } catch (error) {
         console.error('Failed to initialize wallet:', error);
@@ -437,6 +518,58 @@ function App() {
       setTokenBalance('0');
       setIsRegistered(false);
       setPendingRewards('0');
+    }
+  };
+
+  // 🏆 Load leaderboard data
+  const loadLeaderboardData = async () => {
+    if (!contract || !account) return;
+
+    try {
+      console.log('Loading leaderboard data...');
+
+      // Load bettor leaderboard (top 10)
+      const bettorData = await contract.methods.getBettorLeaderboard(0, 10).call();
+      const formattedBettors = bettorData.players.map((player, index) => ({
+        address: player,
+        nickname: bettorData.nicknames[index],
+        totalBets: Web3.utils.fromWei(bettorData.totalBets[index], 'ether'),
+        rank: bettorData.ranks[index]
+      }));
+      setBettorLeaderboard(formattedBettors);
+
+      // Load winner leaderboard (top 10)
+      const winnerData = await contract.methods.getWinnerLeaderboard(0, 10).call();
+      const formattedWinners = winnerData.players.map((player, index) => ({
+        address: player,
+        nickname: winnerData.nicknames[index],
+        totalWins: Web3.utils.fromWei(winnerData.totalWins[index], 'ether'),
+        rank: winnerData.ranks[index]
+      }));
+      setWinnerLeaderboard(formattedWinners);
+
+      // Load user rankings
+      const userRanks = await contract.methods.getUserRankings(account).call();
+      setUserRankings({
+        bettorRank: userRanks.bettorRank,
+        winnerRank: userRanks.winnerRank,
+        totalBets: Web3.utils.fromWei(userRanks.totalBets, 'ether'),
+        totalWins: Web3.utils.fromWei(userRanks.totalWins, 'ether')
+      });
+
+      // Load leaderboard stats
+      const stats = await contract.methods.getLeaderboardStats().call();
+      setLeaderboardStats({
+        totalBettors: stats.totalBettors,
+        totalWinners: stats.totalWinners,
+        maxBettorCount: stats.maxBettorCount,
+        maxWinnerCount: stats.maxWinnerCount
+      });
+
+      console.log('Leaderboard data loaded successfully');
+
+    } catch (error) {
+      console.error('Failed to load leaderboard data:', error);
     }
   };
 
@@ -793,6 +926,9 @@ function App() {
       await loadUserData(account, contract, tokenContract);
       await loadContractBalance(contract, tokenContract);
 
+      // Reload leaderboard data
+      await loadLeaderboardData();
+
     } catch (error) {
       console.error('Game failed:', error);
       alert('Game failed. Please try again.');
@@ -977,6 +1113,22 @@ function App() {
                     </div>
                   </div>
                 </div>
+              </div>
+
+              {/* 🏆 Leaderboard Button */}
+              <div className="bg-okx-dark rounded-2xl p-4 mb-6 border border-okx-border">
+                <button
+                  onClick={() => setShowLeaderboard(true)}
+                  className="w-full flex items-center justify-center space-x-2 py-3 px-4 bg-gradient-to-r from-yellow-500 to-orange-500 hover:from-yellow-600 hover:to-orange-600 text-white font-bold rounded-xl transition-all duration-300 transform hover:scale-105"
+                >
+                  <span className="text-xl">🏆</span>
+                  <span>View Leaderboards</span>
+                  {userRankings && (userRankings.bettorRank > 0 || userRankings.winnerRank > 0) && (
+                    <span className="bg-white/20 px-2 py-1 rounded-full text-xs">
+                      Your Ranks: #{userRankings.bettorRank || 'N/A'} | #{userRankings.winnerRank || 'N/A'}
+                    </span>
+                  )}
+                </button>
               </div>
 
               {/* Betting Controls */}
@@ -1208,6 +1360,181 @@ function App() {
               <p className="text-green-400 text-sm flex items-center justify-center gap-2">
                 🍀 {gameResult.isWin ? 'Lucky you! Keep playing!' : 'Better luck next time!'}
               </p>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* 🏆 Leaderboard Modal */}
+      {showLeaderboard && (
+        <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50 p-4">
+          <div className="bg-okx-dark rounded-2xl border border-okx-border max-w-4xl w-full max-h-[90vh] overflow-hidden">
+            {/* Header */}
+            <div className="flex items-center justify-between p-6 border-b border-okx-border">
+              <h2 className="text-2xl font-bold text-okx-white flex items-center gap-2">
+                🏆 Leaderboards
+              </h2>
+              <button
+                onClick={() => setShowLeaderboard(false)}
+                className="text-okx-muted hover:text-okx-white text-2xl"
+              >
+                ×
+              </button>
+            </div>
+
+            {/* Tabs */}
+            <div className="flex border-b border-okx-border">
+              <button
+                onClick={() => setActiveLeaderboardTab('bettors')}
+                className={`flex-1 py-3 px-4 text-center transition-colors ${
+                  activeLeaderboardTab === 'bettors'
+                    ? 'bg-okx-white text-okx-black font-semibold'
+                    : 'text-okx-muted hover:text-okx-white'
+                }`}
+              >
+                💰 Top Bettors
+              </button>
+              <button
+                onClick={() => setActiveLeaderboardTab('winners')}
+                className={`flex-1 py-3 px-4 text-center transition-colors ${
+                  activeLeaderboardTab === 'winners'
+                    ? 'bg-okx-white text-okx-black font-semibold'
+                    : 'text-okx-muted hover:text-okx-white'
+                }`}
+              >
+                🎯 Top Winners
+              </button>
+            </div>
+
+            {/* Content */}
+            <div className="p-6 overflow-y-auto max-h-[60vh]">
+              {/* User's Ranking */}
+              {userRankings && (
+                <div className="bg-okx-gray rounded-xl p-4 mb-6 border border-okx-border">
+                  <h3 className="text-lg font-semibold text-okx-white mb-3">Your Rankings</h3>
+                  <div className="grid grid-cols-2 gap-4">
+                    <div className="text-center">
+                      <div className="text-2xl font-bold text-yellow-400">
+                        #{userRankings.bettorRank || 'N/A'}
+                      </div>
+                      <div className="text-sm text-okx-muted">Bettor Rank</div>
+                      <div className="text-sm text-okx-white">{parseFloat(userRankings.totalBets).toFixed(2)} XLC</div>
+                    </div>
+                    <div className="text-center">
+                      <div className="text-2xl font-bold text-green-400">
+                        #{userRankings.winnerRank || 'N/A'}
+                      </div>
+                      <div className="text-sm text-okx-muted">Winner Rank</div>
+                      <div className="text-sm text-okx-white">{parseFloat(userRankings.totalWins).toFixed(2)} XLC</div>
+                    </div>
+                  </div>
+                </div>
+              )}
+
+              {/* Leaderboard Table */}
+              <div className="space-y-3">
+                {activeLeaderboardTab === 'bettors' ? (
+                  <>
+                    <h3 className="text-lg font-semibold text-okx-white mb-4">Top Bettors (Total Bets)</h3>
+                    {bettorLeaderboard.length > 0 ? (
+                      bettorLeaderboard.map((player, index) => (
+                        <div
+                          key={player.address}
+                          className={`flex items-center justify-between p-4 rounded-xl border ${
+                            player.address.toLowerCase() === account?.toLowerCase()
+                              ? 'bg-yellow-500/10 border-yellow-500/30'
+                              : 'bg-okx-gray border-okx-border'
+                          }`}
+                        >
+                          <div className="flex items-center space-x-4">
+                            <div className={`w-8 h-8 rounded-full flex items-center justify-center font-bold ${
+                              index === 0 ? 'bg-yellow-500 text-black' :
+                              index === 1 ? 'bg-gray-400 text-black' :
+                              index === 2 ? 'bg-orange-600 text-white' :
+                              'bg-okx-light-gray text-okx-white'
+                            }`}>
+                              {player.rank}
+                            </div>
+                            <div>
+                              <div className="font-semibold text-okx-white">{player.nickname}</div>
+                              <div className="text-xs text-okx-muted">{player.address.slice(0, 6)}...{player.address.slice(-4)}</div>
+                            </div>
+                          </div>
+                          <div className="text-right">
+                            <div className="font-bold text-okx-white">{parseFloat(player.totalBets).toFixed(2)} XLC</div>
+                            <div className="text-xs text-okx-muted">Total Bets</div>
+                          </div>
+                        </div>
+                      ))
+                    ) : (
+                      <div className="text-center text-okx-muted py-8">No bettor data available</div>
+                    )}
+                  </>
+                ) : (
+                  <>
+                    <h3 className="text-lg font-semibold text-okx-white mb-4">Top Winners (Total Wins)</h3>
+                    {winnerLeaderboard.length > 0 ? (
+                      winnerLeaderboard.map((player, index) => (
+                        <div
+                          key={player.address}
+                          className={`flex items-center justify-between p-4 rounded-xl border ${
+                            player.address.toLowerCase() === account?.toLowerCase()
+                              ? 'bg-green-500/10 border-green-500/30'
+                              : 'bg-okx-gray border-okx-border'
+                          }`}
+                        >
+                          <div className="flex items-center space-x-4">
+                            <div className={`w-8 h-8 rounded-full flex items-center justify-center font-bold ${
+                              index === 0 ? 'bg-yellow-500 text-black' :
+                              index === 1 ? 'bg-gray-400 text-black' :
+                              index === 2 ? 'bg-orange-600 text-white' :
+                              'bg-okx-light-gray text-okx-white'
+                            }`}>
+                              {player.rank}
+                            </div>
+                            <div>
+                              <div className="font-semibold text-okx-white">{player.nickname}</div>
+                              <div className="text-xs text-okx-muted">{player.address.slice(0, 6)}...{player.address.slice(-4)}</div>
+                            </div>
+                          </div>
+                          <div className="text-right">
+                            <div className="font-bold text-okx-white">{parseFloat(player.totalWins).toFixed(2)} XLC</div>
+                            <div className="text-xs text-okx-muted">Total Wins</div>
+                          </div>
+                        </div>
+                      ))
+                    ) : (
+                      <div className="text-center text-okx-muted py-8">No winner data available</div>
+                    )}
+                  </>
+                )}
+              </div>
+
+              {/* Stats */}
+              {leaderboardStats && (
+                <div className="mt-6 pt-6 border-t border-okx-border">
+                  <div className="grid grid-cols-2 gap-4 text-center">
+                    <div>
+                      <div className="text-2xl font-bold text-okx-white">{leaderboardStats.totalBettors}</div>
+                      <div className="text-sm text-okx-muted">Total Bettors</div>
+                    </div>
+                    <div>
+                      <div className="text-2xl font-bold text-okx-white">{leaderboardStats.totalWinners}</div>
+                      <div className="text-sm text-okx-muted">Total Winners</div>
+                    </div>
+                  </div>
+                </div>
+              )}
+            </div>
+
+            {/* Footer */}
+            <div className="p-6 border-t border-okx-border">
+              <button
+                onClick={() => loadLeaderboardData()}
+                className="w-full py-3 px-4 bg-okx-white hover:bg-okx-text text-okx-black font-semibold rounded-xl transition-colors"
+              >
+                🔄 Refresh Leaderboards
+              </button>
             </div>
           </div>
         </div>
