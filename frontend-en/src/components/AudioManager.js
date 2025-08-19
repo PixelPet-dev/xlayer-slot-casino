@@ -60,9 +60,18 @@ const AudioManager = React.forwardRef(({ isPlaying, onToggle }, ref) => {
         setCurrentlyPlaying('bgm');
       });
 
-      // 可选的转轮音效
-      spinSoundRef.current = new Audio(`${process.env.PUBLIC_URL}/audio/spin-sound.mp3`);
-      spinSoundRef.current.volume = volume * 0.8;
+      // 可选的转轮音效 (如果文件存在)
+      try {
+        spinSoundRef.current = new Audio(`${process.env.PUBLIC_URL}/audio/spin-sound.mp3`);
+        spinSoundRef.current.volume = volume * 0.8;
+        spinSoundRef.current.addEventListener('error', () => {
+          console.log('转轮音效文件不存在，将使用生成音效');
+          spinSoundRef.current = null;
+        });
+      } catch (error) {
+        console.log('转轮音效初始化失败，将使用生成音效');
+        spinSoundRef.current = null;
+      }
 
     } catch (error) {
       console.log('音效文件加载失败，将使用生成的音效');
