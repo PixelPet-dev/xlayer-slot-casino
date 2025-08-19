@@ -986,6 +986,20 @@ function App() {
                 <div className="w-2 h-2 bg-green-500 rounded-full animate-pulse"></div>
                 <span className="text-sm text-green-400 font-medium">Connected to XLayer</span>
               </div>
+
+              {/* 🎵 BGM Control Button */}
+              <div className="flex items-center space-x-2">
+                <button
+                  onClick={() => setIsBgmPlaying(!isBgmPlaying)}
+                  className="flex items-center space-x-2 bg-okx-dark/50 hover:bg-okx-dark/70 rounded-lg px-3 py-2 border border-okx-border transition-colors"
+                >
+                  <span className="text-lg">{isBgmPlaying ? '🎵' : '🔇'}</span>
+                  <span className="text-xs text-okx-muted">
+                    BGM {isBgmPlaying ? 'ON' : 'OFF'}
+                  </span>
+                </button>
+              </div>
+
               <div className="flex items-center space-x-3 bg-okx-dark/50 rounded-lg px-4 py-2 border border-okx-border">
                 <div className="flex items-center space-x-2">
                   <span className="text-xs text-okx-muted">Wallet:</span>
@@ -1106,10 +1120,10 @@ function App() {
                       </div>
                     </div>
                   )}
-                  <div className="text-sm text-white pt-2 border-t border-okx-border">
+                  <div className="text-white pt-2 border-t border-okx-border">
                     <div className="flex items-center justify-center gap-2">
-                      <span>🏆</span>
-                      <span>Prize Pool: {contractBalance} XLC</span>
+                      <span className="text-2xl">🏆</span>
+                      <span className="text-xl font-bold">Prize Pool: {contractBalance} XLC</span>
                     </div>
                   </div>
                 </div>
