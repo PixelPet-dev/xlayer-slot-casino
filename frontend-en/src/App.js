@@ -429,6 +429,12 @@ function App() {
       console.log('User registered:', user.isRegistered);
       console.log('Pending rewards:', rewards);
 
+      // Auto-register if not registered
+      if (!user.isRegistered) {
+        console.log('User not registered, auto-registering...');
+        await autoRegisterUser(userAddress, gameContract, token);
+      }
+
     } catch (error) {
       console.error('Failed to load user data:', error);
       // Set default values on error
@@ -456,16 +462,46 @@ function App() {
     }
   };
 
+  // Auto-register user with wallet address nickname
+  const autoRegisterUser = async (userAddress, gameContract, token) => {
+    try {
+      // Generate nickname from wallet address (e.g., "Player_3dCA")
+      const shortAddress = userAddress.slice(-6);
+      const autoNickname = `Player_${shortAddress}`;
+
+      console.log('Auto-registering with nickname:', autoNickname);
+
+      const gasPrice = await web3.eth.getGasPrice();
+      await gameContract.methods.registerUser(autoNickname).send({
+        from: userAddress,
+        gasPrice: gasPrice
+      });
+
+      console.log('Auto-registration successful!');
+
+      // Reload user data after registration
+      await loadUserData(userAddress, gameContract, token);
+      await loadContractBalance(gameContract, token);
+
+    } catch (error) {
+      console.error('Auto-registration failed:', error);
+      // If auto-registration fails, still allow manual registration
+      setIsRegistered(false);
+    }
+  };
+
   // Register user
-  const registerUser = async () => {
-    if (!nickname.trim()) {
+  const registerUser = async (skipNickname = false) => {
+    const finalNickname = skipNickname ? `Player_${account.slice(-6)}` : nickname.trim();
+
+    if (!skipNickname && !nickname.trim()) {
       alert('Please enter a nickname');
       return;
     }
 
     try {
       const gasPrice = await web3.eth.getGasPrice();
-      await contract.methods.registerUser(nickname).send({
+      await contract.methods.registerUser(finalNickname).send({
         from: account,
         gasPrice: gasPrice
       });
@@ -473,11 +509,20 @@ function App() {
       setShowRegister(false);
       await loadUserData(account, contract, tokenContract);
       await loadContractBalance(contract, tokenContract);
-      alert('Registration successful!');
+      if (skipNickname) {
+        console.log('Auto-registered with nickname:', finalNickname);
+      } else {
+        alert('Registration successful!');
+      }
     } catch (error) {
       console.error('Registration failed:', error);
       alert('Registration failed. Please try again.');
     }
+  };
+
+  // Quick register with auto-generated nickname
+  const quickRegister = () => {
+    registerUser(true);
   };
 
   // Approve tokens for contract
@@ -515,9 +560,16 @@ function App() {
   // Spin the slots (real blockchain transaction)
   const spin = async () => {
     if (isSpinning) return;
+
+    // Auto-register if somehow not registered (backup check)
     if (!isRegistered) {
-      setShowRegister(true);
-      return;
+      console.log('User not registered during spin, attempting auto-registration...');
+      await autoRegisterUser(account, contract, tokenContract);
+      // If still not registered after auto-registration, show error
+      if (!isRegistered) {
+        alert('Registration required. Please try again.');
+        return;
+      }
     }
 
     const betAmountFloat = parseFloat(betAmount);
@@ -840,31 +892,11 @@ function App() {
             </div>
           ) : !isRegistered ? (
             <div className="bg-okx-dark rounded-2xl p-6 mb-6 border border-okx-border">
-              <div className="text-center mb-4">
-                <h3 className="text-lg font-semibold mb-2 text-okx-white">Register to Play</h3>
-                <p className="text-sm text-okx-muted">Create your player profile to start playing</p>
+              <div className="text-center">
+                <div className="animate-spin w-8 h-8 border-2 border-okx-white border-t-transparent rounded-full mx-auto mb-4"></div>
+                <h3 className="text-lg font-semibold mb-2 text-okx-white">Setting up your account...</h3>
+                <p className="text-sm text-okx-muted">Automatically registering with your wallet address</p>
               </div>
-              <div className="mb-4">
-                <input
-                  type="text"
-                  placeholder="Enter your nickname"
-                  value={nickname}
-                  onChange={(e) => setNickname(e.target.value)}
-                  className="w-full px-4 py-3 bg-okx-gray border border-okx-border rounded-lg text-okx-white placeholder-okx-muted focus:outline-none focus:border-okx-white"
-                  maxLength={50}
-                />
-              </div>
-              <button
-                onClick={registerUser}
-                disabled={!nickname.trim()}
-                className={`w-full py-3 px-6 rounded-xl font-bold transition-all duration-300 ${
-                  nickname.trim()
-                    ? 'bg-okx-white hover:bg-okx-text text-okx-black'
-                    : 'bg-okx-light-gray text-okx-muted cursor-not-allowed'
-                }`}
-              >
-                🎮 Register & Play
-              </button>
             </div>
           ) : (
             <>
@@ -1054,35 +1086,7 @@ function App() {
         </div>
       </div>
 
-      {/* Registration Modal */}
-      {showRegister && (
-        <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50">
-          <div className="bg-okx-dark p-8 rounded-2xl border border-okx-border max-w-md w-full mx-4">
-            <h2 className="text-2xl font-bold text-okx-white mb-6 text-center">Register to Play</h2>
-            <input
-              type="text"
-              placeholder="Enter your nickname"
-              value={nickname}
-              onChange={(e) => setNickname(e.target.value)}
-              className="w-full p-4 rounded-lg bg-okx-gray text-okx-white border border-okx-border mb-6"
-            />
-            <div className="flex gap-4">
-              <button
-                onClick={() => setShowRegister(false)}
-                className="flex-1 py-3 px-6 rounded-lg bg-okx-gray text-okx-white hover:bg-okx-light-gray transition-colors"
-              >
-                Cancel
-              </button>
-              <button
-                onClick={registerUser}
-                className="flex-1 py-3 px-6 rounded-lg bg-okx-white text-okx-black hover:bg-okx-text transition-colors"
-              >
-                Register
-              </button>
-            </div>
-          </div>
-        </div>
-      )}
+
 
       {/* Game Result Modal */}
       {showResult && gameResult && (
