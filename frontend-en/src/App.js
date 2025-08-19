@@ -1345,21 +1345,7 @@ function App() {
                 </div>
               </div>
 
-              {/* 🏆 Leaderboard Button */}
-              <div className="bg-okx-dark rounded-2xl p-4 mb-6 border border-okx-border">
-                <button
-                  onClick={() => setShowLeaderboard(true)}
-                  className="w-full flex items-center justify-center space-x-2 py-3 px-4 bg-gradient-to-r from-yellow-500 to-orange-500 hover:from-yellow-600 hover:to-orange-600 text-white font-bold rounded-xl transition-all duration-300 transform hover:scale-105"
-                >
-                  <span className="text-xl">🏆</span>
-                  <span>View Leaderboards</span>
-                  {userRankings && (userRankings.bettorRank > 0 || userRankings.winnerRank > 0) && (
-                    <span className="bg-white/20 px-2 py-1 rounded-full text-xs">
-                      Your Ranks: #{userRankings.bettorRank || 'N/A'} | #{userRankings.winnerRank || 'N/A'}
-                    </span>
-                  )}
-                </button>
-              </div>
+
 
               {/* Betting Controls */}
               <div className="bg-okx-dark rounded-2xl p-6 mb-6 border border-okx-border">
@@ -1432,6 +1418,22 @@ function App() {
                     </p>
                   </div>
                 )}
+              </div>
+
+              {/* 🏆 Leaderboard Button */}
+              <div className="bg-okx-dark rounded-2xl p-4 mb-6 border border-okx-border">
+                <button
+                  onClick={() => setShowLeaderboard(true)}
+                  className="w-full flex items-center justify-center space-x-2 py-3 px-4 bg-gradient-to-r from-yellow-500 to-orange-500 hover:from-yellow-600 hover:to-orange-600 text-white font-bold rounded-xl transition-all duration-300 transform hover:scale-105"
+                >
+                  <span className="text-xl">🏆</span>
+                  <span>View Leaderboards</span>
+                  {userRankings && (userRankings.bettorRank > 0 || userRankings.winnerRank > 0) && (
+                    <span className="bg-white/20 px-2 py-1 rounded-full text-xs">
+                      Your Ranks: #{userRankings.bettorRank || 'N/A'} | #{userRankings.winnerRank || 'N/A'}
+                    </span>
+                  )}
+                </button>
               </div>
 
               {/* Game History */}
