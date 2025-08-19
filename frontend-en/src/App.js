@@ -15,9 +15,9 @@ const XLAYER_CONFIG = {
   blockExplorerUrls: ['https://www.oklink.com/xlayer'],
 };
 
-// Contract Configuration - Updated with new security features and leaderboards
+// Contract Configuration - Updated with ENHANCED SECURITY FEATURES
 const CONTRACT_CONFIG = {
-  address: '0x7415e413f49f0AE94D741b8d9D3cBAA362EF1099', // ✅ New contract with security fixes and leaderboards
+  address: '0x356F8378bE4bE92ecBF2961efA01143974daD45C', // 🛡️ NEW: Enhanced Security Contract
   tokenAddress: '0x798095d5BF06edeF0aEB82c10DCDa5a92f58834E',
   abi: [
     {
@@ -118,7 +118,7 @@ const CONTRACT_CONFIG = {
       "stateMutability": "view",
       "type": "function"
     },
-    // 🛡️ Security Functions
+    // 🛡️ Enhanced Security Functions
     {
       "inputs": [{"internalType": "address", "name": "_newTokenContract", "type": "address"}],
       "name": "updateTokenContract",
@@ -130,6 +130,60 @@ const CONTRACT_CONFIG = {
       "inputs": [],
       "name": "emergencyMode",
       "outputs": [{"internalType": "bool", "name": "", "type": "bool"}],
+      "stateMutability": "view",
+      "type": "function"
+    },
+    // 🔒 Commit-Reveal Mechanism
+    {
+      "inputs": [
+        {"internalType": "bytes32", "name": "_commitHash", "type": "bytes32"},
+        {"internalType": "uint256", "name": "_betAmount", "type": "uint256"}
+      ],
+      "name": "commitGame",
+      "outputs": [],
+      "stateMutability": "nonpayable",
+      "type": "function"
+    },
+    {
+      "inputs": [{"internalType": "uint256", "name": "_nonce", "type": "uint256"}],
+      "name": "revealAndPlay",
+      "outputs": [],
+      "stateMutability": "nonpayable",
+      "type": "function"
+    },
+    {
+      "inputs": [],
+      "name": "cleanupExpiredCommitment",
+      "outputs": [],
+      "stateMutability": "nonpayable",
+      "type": "function"
+    },
+    // 📊 Security Status Functions
+    {
+      "inputs": [{"internalType": "address", "name": "user", "type": "address"}],
+      "name": "getUserCommitment",
+      "outputs": [
+        {"internalType": "bytes32", "name": "commitHash", "type": "bytes32"},
+        {"internalType": "uint256", "name": "betAmount", "type": "uint256"},
+        {"internalType": "uint256", "name": "commitTime", "type": "uint256"},
+        {"internalType": "bool", "name": "revealed", "type": "bool"},
+        {"internalType": "bool", "name": "executed", "type": "bool"},
+        {"internalType": "bool", "name": "canReveal", "type": "bool"},
+        {"internalType": "bool", "name": "isExpired", "type": "bool"}
+      ],
+      "stateMutability": "view",
+      "type": "function"
+    },
+    {
+      "inputs": [{"internalType": "address", "name": "user", "type": "address"}],
+      "name": "getUserRateLimit",
+      "outputs": [
+        {"internalType": "uint256", "name": "lastGame", "type": "uint256"},
+        {"internalType": "uint256", "name": "gamesThisHour", "type": "uint256"},
+        {"internalType": "uint256", "name": "windowStart", "type": "uint256"},
+        {"internalType": "uint256", "name": "nextGameTime", "type": "uint256"},
+        {"internalType": "bool", "name": "canPlay", "type": "bool"}
+      ],
       "stateMutability": "view",
       "type": "function"
     }

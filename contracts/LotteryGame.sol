@@ -74,6 +74,33 @@ contract LotteryGame is Ownable, Pausable, ReentrancyGuard {
     bool public emergencyMode = false;
     mapping(address => mapping(address => uint256)) public emergencyWithdrawals; // 用户在各代币中的紧急提取额度
 
+    // 提交-揭示机制
+    struct Commitment {
+        bytes32 commitHash;
+        uint256 betAmount;
+        uint256 commitTime;
+        bool revealed;
+        bool executed;
+    }
+    mapping(address => Commitment) public commitments;
+    uint256 public constant REVEAL_WINDOW = 300; // 5分钟揭示窗口
+    uint256 public constant MIN_COMMIT_TIME = 60; // 最少等待1分钟
+
+    // 速率限制
+    mapping(address => uint256) public lastGameTime;
+    mapping(address => uint256) public gamesInWindow;
+    mapping(address => uint256) public windowStartTime;
+    uint256 public constant RATE_LIMIT_WINDOW = 3600; // 1小时窗口
+    uint256 public constant MAX_GAMES_PER_HOUR = 100; // 每小时最多100次游戏
+    uint256 public constant MIN_GAME_INTERVAL = 3; // 最少3秒间隔
+
+    // 增强随机数种子池
+    uint256[] private randomSeedPool;
+    uint256 private seedPoolIndex;
+    uint256 public constant SEED_POOL_SIZE = 100;
+
+
+
     // 开发模式 (生产环境应设为false)
     bool public developmentMode = true;  // 开发环境设为true
     
@@ -101,6 +128,19 @@ contract LotteryGame is Ownable, Pausable, ReentrancyGuard {
     event EmergencyModeEnabled();
     event EmergencyModeDisabled();
     event EmergencyWithdrawal(address indexed user, address indexed token, uint256 amount);
+
+    // 提交-揭示机制事件
+    event GameCommitted(address indexed player, bytes32 commitHash, uint256 betAmount);
+    event GameRevealed(address indexed player, uint256 nonce, Symbol[3] symbols, uint256 winAmount);
+    event CommitmentExpired(address indexed player, bytes32 commitHash);
+
+    // 速率限制事件
+    event RateLimitExceeded(address indexed player, uint256 gamesPlayed, uint256 timeWindow);
+
+    // 随机数种子事件
+    event SeedPoolUpdated(uint256 newSeedsCount);
+
+
     
     modifier onlyRegisteredUser() {
         require(users[msg.sender].isRegistered, "User not registered");
@@ -117,6 +157,32 @@ contract LotteryGame is Ownable, Pausable, ReentrancyGuard {
         require(amount <= gameConfig.maxBet, "Bet amount too high");
         _;
     }
+
+    modifier rateLimited() {
+        // 检查最小游戏间隔
+        require(block.timestamp >= lastGameTime[msg.sender] + MIN_GAME_INTERVAL, "Game too frequent");
+
+        // 检查小时内游戏次数限制
+        if (block.timestamp >= windowStartTime[msg.sender] + RATE_LIMIT_WINDOW) {
+            // 重置窗口
+            windowStartTime[msg.sender] = block.timestamp;
+            gamesInWindow[msg.sender] = 0;
+        }
+
+        require(gamesInWindow[msg.sender] < MAX_GAMES_PER_HOUR, "Hourly game limit exceeded");
+
+        // 更新速率限制状态
+        lastGameTime[msg.sender] = block.timestamp;
+        gamesInWindow[msg.sender]++;
+
+        if (gamesInWindow[msg.sender] >= MAX_GAMES_PER_HOUR) {
+            emit RateLimitExceeded(msg.sender, gamesInWindow[msg.sender], RATE_LIMIT_WINDOW);
+        }
+
+        _;
+    }
+
+
     
     constructor(
         address _tokenContract,
@@ -139,6 +205,9 @@ contract LotteryGame is Ownable, Pausable, ReentrancyGuard {
         
         // 初始化快捷下注选项
         quickBetOptions = [1 * 10**18, 5 * 10**18, 10 * 10**18, 50 * 10**18, 100 * 10**18];
+
+        // 初始化随机数种子池
+        _initializeRandomSeedPool();
     }
     
     /**
@@ -176,15 +245,16 @@ contract LotteryGame is Ownable, Pausable, ReentrancyGuard {
     }
     
     /**
-     * @dev 抽奖游戏
+     * @dev 抽奖游戏 (传统模式 - 兼容性保留)
      */
-    function playLottery(uint256 betAmount) 
-        external 
-        nonReentrant 
-        whenNotPaused 
-        onlyRegisteredUser 
-        gameIsActive 
-        validBetAmount(betAmount) 
+    function playLottery(uint256 betAmount)
+        external
+        nonReentrant
+        whenNotPaused
+        onlyRegisteredUser
+        gameIsActive
+        validBetAmount(betAmount)
+        rateLimited
     {
         // 验证用户代币余额
         require(currentToken.balanceOf(msg.sender) >= betAmount, "Insufficient token balance");
@@ -195,8 +265,8 @@ contract LotteryGame is Ownable, Pausable, ReentrancyGuard {
         // 转移下注代币到合约
         require(currentToken.transferFrom(msg.sender, address(this), betAmount), "Token transfer failed");
         
-        // 生成随机结果
-        Symbol[3] memory symbols = _generateSpinResult();
+        // 生成随机结果 (使用增强随机数)
+        Symbol[3] memory symbols = _generateEnhancedRandomSymbols();
         
         // 计算奖金
         uint256 winAmount = _calculateWinAmount(symbols, betAmount);
@@ -256,12 +326,41 @@ contract LotteryGame is Ownable, Pausable, ReentrancyGuard {
     }
     
     /**
-     * @dev 生成旋转结果
+     * @dev 生成增强随机符号 (传统模式)
      */
-    function _generateSpinResult() private returns (Symbol[3] memory symbols) {
+    function _generateEnhancedRandomSymbols() private returns (Symbol[3] memory) {
+        Symbol[3] memory symbols;
+
         for (uint256 i = 0; i < 3; i++) {
-            symbols[i] = _generateRandomSymbol();
+            // 使用增强的随机数生成
+            uint256 randomValue = uint256(keccak256(abi.encodePacked(
+                blockhash(block.number - 1),
+                blockhash(block.number - 2),
+                blockhash(block.number - 3),
+                block.timestamp,
+                block.difficulty,
+                block.coinbase,
+                msg.sender,
+                nonce,
+                gasleft(),
+                tx.gasprice,
+                randomSeedPool[seedPoolIndex % SEED_POOL_SIZE], // 使用种子池
+                i
+            ))) % 1000;
+
+            // 更新种子池
+            seedPoolIndex = (seedPoolIndex + 1) % SEED_POOL_SIZE;
+            randomSeedPool[seedPoolIndex] = uint256(keccak256(abi.encodePacked(
+                randomSeedPool[seedPoolIndex],
+                randomValue,
+                block.timestamp
+            )));
+
+            nonce++;
+            symbols[i] = _getSymbolFromRandom(randomValue);
         }
+
+        return symbols;
     }
     
     /**
@@ -377,11 +476,19 @@ contract LotteryGame is Ownable, Pausable, ReentrancyGuard {
     }
     
     /**
-     * @dev 紧急提取代币
+     * @dev 紧急提取代币 (仅在紧急模式下，且有额度限制)
      */
     function emergencyWithdraw(uint256 amount) external onlyOwner {
+        require(emergencyMode, "Emergency mode not activated");
         require(amount <= currentToken.balanceOf(address(this)), "Insufficient balance");
+
+        // 限制单次提取金额不超过合约余额的10%
+        uint256 maxWithdraw = currentToken.balanceOf(address(this)) / 10;
+        require(amount <= maxWithdraw, "Exceeds emergency withdrawal limit");
+
         require(currentToken.transfer(owner(), amount), "Transfer failed");
+
+        emit EmergencyWithdrawal(owner(), address(currentToken), amount);
     }
     
     /**
@@ -754,5 +861,242 @@ contract LotteryGame is Ownable, Pausable, ReentrancyGuard {
         totalWinners = topWinners.length;
         maxBettorCount = LEADERBOARD_SIZE;
         maxWinnerCount = LEADERBOARD_SIZE;
+    }
+
+    // ============ 安全改进功能 ============
+
+    /**
+     * @dev 初始化随机数种子池
+     */
+    function _initializeRandomSeedPool() private {
+        for (uint256 i = 0; i < SEED_POOL_SIZE; i++) {
+            randomSeedPool.push(uint256(keccak256(abi.encodePacked(
+                block.timestamp,
+                block.difficulty,
+                i,
+                address(this)
+            ))));
+        }
+        seedPoolIndex = 0;
+        emit SeedPoolUpdated(SEED_POOL_SIZE);
+    }
+
+    /**
+     * @dev 更新随机数种子池 (管理员功能)
+     */
+    function updateRandomSeedPool() external onlyOwner {
+        delete randomSeedPool;
+        _initializeRandomSeedPool();
+    }
+
+    /**
+     * @dev 提交游戏承诺 (提交-揭示机制第一步)
+     */
+    function commitGame(bytes32 _commitHash, uint256 _betAmount)
+        external
+        nonReentrant
+        whenNotPaused
+        onlyRegisteredUser
+        gameIsActive
+        validBetAmount(_betAmount)
+        rateLimited
+    {
+        require(commitments[msg.sender].commitTime == 0, "Previous commitment not resolved");
+        require(_commitHash != bytes32(0), "Invalid commit hash");
+
+        // 检查代币余额和授权
+        require(currentToken.balanceOf(msg.sender) >= _betAmount, "Insufficient token balance");
+        require(currentToken.allowance(msg.sender, address(this)) >= _betAmount, "Insufficient allowance");
+
+        // 转移代币到合约
+        require(currentToken.transferFrom(msg.sender, address(this), _betAmount), "Token transfer failed");
+
+        // 记录承诺
+        commitments[msg.sender] = Commitment({
+            commitHash: _commitHash,
+            betAmount: _betAmount,
+            commitTime: block.timestamp,
+            revealed: false,
+            executed: false
+        });
+
+        emit GameCommitted(msg.sender, _commitHash, _betAmount);
+    }
+
+    /**
+     * @dev 揭示并执行游戏 (提交-揭示机制第二步)
+     */
+    function revealAndPlay(uint256 _nonce) external nonReentrant whenNotPaused {
+        Commitment storage commitment = commitments[msg.sender];
+
+        require(commitment.commitTime > 0, "No commitment found");
+        require(!commitment.revealed, "Already revealed");
+        require(!commitment.executed, "Already executed");
+        require(block.timestamp >= commitment.commitTime + MIN_COMMIT_TIME, "Commit time not elapsed");
+        require(block.timestamp <= commitment.commitTime + REVEAL_WINDOW, "Reveal window expired");
+
+        // 验证承诺
+        bytes32 hash = keccak256(abi.encodePacked(msg.sender, _nonce, commitment.betAmount));
+        require(hash == commitment.commitHash, "Invalid reveal");
+
+        // 标记为已揭示
+        commitment.revealed = true;
+        commitment.executed = true;
+
+        // 执行游戏逻辑
+        Symbol[3] memory symbols = _generateSecureRandomSymbols(_nonce);
+        uint256 winAmount = _calculateWinAmount(symbols, commitment.betAmount);
+
+        // 更新用户统计 (防溢出检查)
+        require(users[msg.sender].totalBets + commitment.betAmount >= users[msg.sender].totalBets, "Bet amount overflow");
+        users[msg.sender].totalBets += commitment.betAmount;
+        users[msg.sender].gamesPlayed++;
+
+        // 更新下注排行榜
+        _updateBettorLeaderboard(msg.sender);
+
+        if (winAmount > 0) {
+            require(users[msg.sender].totalWins + winAmount >= users[msg.sender].totalWins, "Win amount overflow");
+            require(users[msg.sender].pendingRewards + winAmount >= users[msg.sender].pendingRewards, "Pending rewards overflow");
+
+            users[msg.sender].totalWins += winAmount;
+            users[msg.sender].pendingRewards += winAmount;
+
+            // 更新赢取排行榜
+            _updateWinnerLeaderboard(msg.sender);
+        }
+
+        // 记录游戏结果
+        totalGameRecords++;
+
+        // 清除承诺
+        delete commitments[msg.sender];
+
+        emit GameRevealed(msg.sender, _nonce, symbols, winAmount);
+        emit GamePlayed(msg.sender, totalGameRecords, symbols, commitment.betAmount, winAmount, address(currentToken));
+    }
+
+    /**
+     * @dev 清理过期承诺
+     */
+    function cleanupExpiredCommitment() external {
+        Commitment storage commitment = commitments[msg.sender];
+
+        require(commitment.commitTime > 0, "No commitment found");
+        require(block.timestamp > commitment.commitTime + REVEAL_WINDOW, "Commitment not expired");
+        require(!commitment.executed, "Already executed");
+
+        // 退还代币
+        require(currentToken.transfer(msg.sender, commitment.betAmount), "Refund failed");
+
+        emit CommitmentExpired(msg.sender, commitment.commitHash);
+
+        // 清除承诺
+        delete commitments[msg.sender];
+    }
+
+    /**
+     * @dev 生成安全的随机符号 (增强版)
+     */
+    function _generateSecureRandomSymbols(uint256 _userNonce) private returns (Symbol[3] memory) {
+        Symbol[3] memory symbols;
+
+        for (uint256 i = 0; i < 3; i++) {
+            // 使用多重随机源
+            uint256 randomValue = uint256(keccak256(abi.encodePacked(
+                blockhash(block.number - 1),
+                blockhash(block.number - 2),
+                blockhash(block.number - 3),
+                block.timestamp,
+                block.difficulty,
+                block.coinbase,
+                msg.sender,
+                _userNonce,
+                nonce,
+                gasleft(),
+                tx.gasprice,
+                randomSeedPool[seedPoolIndex % SEED_POOL_SIZE], // 使用种子池
+                i
+            ))) % 1000;
+
+            // 更新种子池索引
+            seedPoolIndex = (seedPoolIndex + 1) % SEED_POOL_SIZE;
+
+            // 更新种子池中的值
+            randomSeedPool[seedPoolIndex] = uint256(keccak256(abi.encodePacked(
+                randomSeedPool[seedPoolIndex],
+                randomValue,
+                block.timestamp
+            )));
+
+            nonce++;
+            symbols[i] = _getSymbolFromRandom(randomValue);
+        }
+
+        return symbols;
+    }
+
+    /**
+     * @dev 从随机数获取符号
+     */
+    function _getSymbolFromRandom(uint256 randomValue) private pure returns (Symbol) {
+        if (randomValue < 300) return Symbol.Cherry;      // 30%
+        else if (randomValue < 500) return Symbol.Lemon;  // 20%
+        else if (randomValue < 650) return Symbol.Orange; // 15%
+        else if (randomValue < 750) return Symbol.Plum;   // 10%
+        else if (randomValue < 850) return Symbol.Bell;   // 10%
+        else if (randomValue < 920) return Symbol.Bar;    // 7%
+        else if (randomValue < 980) return Symbol.Seven;  // 6%
+        else return Symbol.Jackpot;                       // 2%
+    }
+
+    /**
+     * @dev 获取用户当前承诺状态
+     */
+    function getUserCommitment(address user) external view returns (
+        bytes32 commitHash,
+        uint256 betAmount,
+        uint256 commitTime,
+        bool revealed,
+        bool executed,
+        bool canReveal,
+        bool isExpired
+    ) {
+        Commitment memory commitment = commitments[user];
+        commitHash = commitment.commitHash;
+        betAmount = commitment.betAmount;
+        commitTime = commitment.commitTime;
+        revealed = commitment.revealed;
+        executed = commitment.executed;
+
+        if (commitTime > 0) {
+            canReveal = block.timestamp >= commitTime + MIN_COMMIT_TIME &&
+                       block.timestamp <= commitTime + REVEAL_WINDOW &&
+                       !revealed && !executed;
+            isExpired = block.timestamp > commitTime + REVEAL_WINDOW && !executed;
+        }
+    }
+
+    /**
+     * @dev 获取用户速率限制状态
+     */
+    function getUserRateLimit(address user) external view returns (
+        uint256 lastGame,
+        uint256 gamesThisHour,
+        uint256 windowStart,
+        uint256 nextGameTime,
+        bool canPlay
+    ) {
+        lastGame = lastGameTime[user];
+        gamesThisHour = gamesInWindow[user];
+        windowStart = windowStartTime[user];
+        nextGameTime = lastGame + MIN_GAME_INTERVAL;
+
+        // 检查是否在新窗口
+        if (block.timestamp >= windowStart + RATE_LIMIT_WINDOW) {
+            gamesThisHour = 0;
+        }
+
+        canPlay = block.timestamp >= nextGameTime && gamesThisHour < MAX_GAMES_PER_HOUR;
     }
 }

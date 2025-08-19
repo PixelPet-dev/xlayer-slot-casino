@@ -37,7 +37,7 @@ async function main() {
     const LotteryGame = await ethers.getContractFactory("LotteryGame");
     const lotteryGame = await LotteryGame.deploy(
         config.initialTokenContract,
-        deployer.address
+        "0x78C30Bc014b6d67FA6fb27FF8cd6e23Ae69c1626"  // 最高权限管理员地址
     );
     
     await lotteryGame.waitForDeployment();
