@@ -196,6 +196,7 @@ function App() {
   const [pendingRewards, setPendingRewards] = useState('0');
   const [isConnecting, setIsConnecting] = useState(false);
   const [connectionError, setConnectionError] = useState('');
+  const [isRegistering, setIsRegistering] = useState(false);
   const [showRegister, setShowRegister] = useState(false);
   const [showResult, setShowResult] = useState(false);
   const [gameResult, setGameResult] = useState(null);
@@ -492,28 +493,47 @@ function App() {
   // Load user data from blockchain
   const loadUserData = async (userAddress, gameContract, token) => {
     try {
-      console.log('Loading user data for:', userAddress);
+      console.log('📊 Loading user data for:', userAddress);
 
       // Get token balance
       const tokenBal = await token.methods.balanceOf(userAddress).call();
       const balance = Web3.utils.fromWei(tokenBal, 'ether');
       setTokenBalance(balance);
-      console.log('Token balance:', balance);
+      console.log('💰 Token balance:', balance);
 
-      // Get user info from contract
-      const user = await gameContract.methods.users(userAddress).call();
+      // Get user info from contract with retry mechanism
+      let user;
+      let retryCount = 0;
+      const maxRetries = 3;
+
+      while (retryCount < maxRetries) {
+        try {
+          user = await gameContract.methods.users(userAddress).call();
+          break;
+        } catch (error) {
+          retryCount++;
+          console.log(`⚠️ Retry ${retryCount}/${maxRetries} loading user data:`, error.message);
+          if (retryCount < maxRetries) {
+            await new Promise(resolve => setTimeout(resolve, 1000)); // Wait 1 second before retry
+          } else {
+            throw error;
+          }
+        }
+      }
+
       setUserInfo(user);
       setIsRegistered(user.isRegistered);
       const rewards = Web3.utils.fromWei(user.pendingRewards, 'ether');
       setPendingRewards(rewards);
 
-      console.log('User registered:', user.isRegistered);
-      console.log('Pending rewards:', rewards);
+      console.log('👤 User registered:', user.isRegistered);
+      console.log('🎁 Pending rewards:', rewards);
+      console.log('🎮 Games played:', user.gamesPlayed);
 
       // Skip auto-registration for now - let user register manually when needed
 
     } catch (error) {
-      console.error('Failed to load user data:', error);
+      console.error('❌ Failed to load user data:', error);
       // Set default values on error
       setTokenBalance('0');
       setIsRegistered(false);
@@ -649,24 +669,64 @@ function App() {
       return;
     }
 
+    setIsRegistering(true);
+
     try {
+      console.log('🎮 Starting registration for:', finalNickname);
+
       const gasPrice = await web3.eth.getGasPrice();
-      await contract.methods.registerUser(finalNickname).send({
+
+      // Send registration transaction
+      const tx = await contract.methods.registerUser(finalNickname).send({
         from: account,
         gasPrice: gasPrice
       });
-      setIsRegistered(true);
-      setShowRegister(false);
+
+      console.log('✅ Registration transaction successful:', tx.transactionHash);
+
+      // Wait a moment for blockchain to update
+      await new Promise(resolve => setTimeout(resolve, 2000));
+
+      // Reload user data to get updated registration status
       await loadUserData(account, contract, tokenContract);
       await loadContractBalance(contract, tokenContract);
-      if (skipNickname) {
-        console.log('Auto-registered with nickname:', finalNickname);
+
+      // Load leaderboard data
+      await loadLeaderboardData();
+
+      // Double-check registration status
+      const user = await contract.methods.users(account).call();
+      if (user.isRegistered) {
+        setIsRegistered(true);
+        setShowRegister(false);
+        console.log('✅ Registration confirmed on blockchain');
+
+        if (skipNickname) {
+          console.log('Auto-registered with nickname:', finalNickname);
+        } else {
+          alert('Registration successful! Welcome to XLayer Slot!');
+        }
       } else {
-        alert('Registration successful!');
+        throw new Error('Registration not confirmed on blockchain');
       }
+
     } catch (error) {
-      console.error('Registration failed:', error);
-      alert('Registration failed. Please try again.');
+      console.error('❌ Registration failed:', error);
+
+      // Reset registration state on failure
+      setIsRegistered(false);
+
+      if (error.message.includes('User already registered')) {
+        // User is already registered, just update the state
+        setIsRegistered(true);
+        setShowRegister(false);
+        await loadUserData(account, contract, tokenContract);
+        console.log('✅ User was already registered');
+      } else {
+        alert('Registration failed. Please try again.');
+      }
+    } finally {
+      setIsRegistering(false);
     }
   };
 
@@ -1068,14 +1128,21 @@ function App() {
               </div>
               <button
                 onClick={registerUser}
-                disabled={!nickname.trim()}
+                disabled={!nickname.trim() || isRegistering}
                 className={`w-full py-3 px-6 rounded-xl font-bold transition-all duration-300 ${
-                  nickname.trim()
+                  nickname.trim() && !isRegistering
                     ? 'bg-okx-white hover:bg-okx-text text-okx-black'
                     : 'bg-okx-light-gray text-okx-muted cursor-not-allowed'
                 }`}
               >
-                🎮 Register & Play
+                {isRegistering ? (
+                  <div className="flex items-center justify-center space-x-2">
+                    <div className="w-4 h-4 border-2 border-okx-black border-t-transparent rounded-full animate-spin"></div>
+                    <span>Registering...</span>
+                  </div>
+                ) : (
+                  '🎮 Register & Play'
+                )}
               </button>
             </div>
           ) : (
