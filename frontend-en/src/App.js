@@ -429,11 +429,7 @@ function App() {
       console.log('User registered:', user.isRegistered);
       console.log('Pending rewards:', rewards);
 
-      // Auto-register if not registered
-      if (!user.isRegistered) {
-        console.log('User not registered, auto-registering...');
-        await autoRegisterUser(userAddress, gameContract, token);
-      }
+      // Skip auto-registration for now - let user register manually when needed
 
     } catch (error) {
       console.error('Failed to load user data:', error);
@@ -465,6 +461,16 @@ function App() {
   // Auto-register user with wallet address nickname
   const autoRegisterUser = async (userAddress, gameContract, token) => {
     try {
+      // Check if user has enough ETH for gas
+      const balance = await web3.eth.getBalance(userAddress);
+      const balanceEth = Web3.utils.fromWei(balance, 'ether');
+
+      if (parseFloat(balanceEth) < 0.001) {
+        console.log('Insufficient ETH for gas, skipping auto-registration');
+        setIsRegistered(false);
+        return;
+      }
+
       // Generate nickname from wallet address (e.g., "Player_3dCA")
       const shortAddress = userAddress.slice(-6);
       const autoNickname = `Player_${shortAddress}`;
@@ -472,10 +478,20 @@ function App() {
       console.log('Auto-registering with nickname:', autoNickname);
 
       const gasPrice = await web3.eth.getGasPrice();
-      await gameContract.methods.registerUser(autoNickname).send({
+
+      // Set a timeout for the registration transaction
+      const registrationPromise = gameContract.methods.registerUser(autoNickname).send({
         from: userAddress,
         gasPrice: gasPrice
       });
+
+      // Wait max 10 seconds for registration
+      await Promise.race([
+        registrationPromise,
+        new Promise((_, reject) =>
+          setTimeout(() => reject(new Error('Registration timeout')), 10000)
+        )
+      ]);
 
       console.log('Auto-registration successful!');
 
@@ -485,8 +501,9 @@ function App() {
 
     } catch (error) {
       console.error('Auto-registration failed:', error);
-      // If auto-registration fails, still allow manual registration
+      // If auto-registration fails, allow user to continue without registration
       setIsRegistered(false);
+      console.log('User can continue without registration - will register when needed');
     }
   };
 
@@ -560,16 +577,9 @@ function App() {
   // Spin the slots (real blockchain transaction)
   const spin = async () => {
     if (isSpinning) return;
-
-    // Auto-register if somehow not registered (backup check)
     if (!isRegistered) {
-      console.log('User not registered during spin, attempting auto-registration...');
-      await autoRegisterUser(account, contract, tokenContract);
-      // If still not registered after auto-registration, show error
-      if (!isRegistered) {
-        alert('Registration required. Please try again.');
-        return;
-      }
+      alert('Please register first to play the game!');
+      return;
     }
 
     const betAmountFloat = parseFloat(betAmount);
@@ -892,11 +902,31 @@ function App() {
             </div>
           ) : !isRegistered ? (
             <div className="bg-okx-dark rounded-2xl p-6 mb-6 border border-okx-border">
-              <div className="text-center">
-                <div className="animate-spin w-8 h-8 border-2 border-okx-white border-t-transparent rounded-full mx-auto mb-4"></div>
-                <h3 className="text-lg font-semibold mb-2 text-okx-white">Setting up your account...</h3>
-                <p className="text-sm text-okx-muted">Automatically registering with your wallet address</p>
+              <div className="text-center mb-4">
+                <h3 className="text-lg font-semibold mb-2 text-okx-white">Register to Play</h3>
+                <p className="text-sm text-okx-muted">Create your player profile to start playing</p>
               </div>
+              <div className="mb-4">
+                <input
+                  type="text"
+                  placeholder="Enter your nickname"
+                  value={nickname}
+                  onChange={(e) => setNickname(e.target.value)}
+                  className="w-full px-4 py-3 bg-okx-gray border border-okx-border rounded-lg text-okx-white placeholder-okx-muted focus:outline-none focus:border-okx-white"
+                  maxLength={50}
+                />
+              </div>
+              <button
+                onClick={registerUser}
+                disabled={!nickname.trim()}
+                className={`w-full py-3 px-6 rounded-xl font-bold transition-all duration-300 ${
+                  nickname.trim()
+                    ? 'bg-okx-white hover:bg-okx-text text-okx-black'
+                    : 'bg-okx-light-gray text-okx-muted cursor-not-allowed'
+                }`}
+              >
+                🎮 Register & Play
+              </button>
             </div>
           ) : (
             <>
