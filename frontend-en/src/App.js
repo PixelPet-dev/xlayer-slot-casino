@@ -17,7 +17,7 @@ const XLAYER_CONFIG = {
 
 // Contract Configuration - Updated with new security features and leaderboards
 const CONTRACT_CONFIG = {
-  address: '0xF6637254Cceb1484Db01B57f90DdB0B6094e4407', // 🔄 Update this with your new contract address
+  address: '0x7415e413f49f0AE94D741b8d9D3cBAA362EF1099', // ✅ New contract with security fixes and leaderboards
   tokenAddress: '0x798095d5BF06edeF0aEB82c10DCDa5a92f58834E',
   abi: [
     {

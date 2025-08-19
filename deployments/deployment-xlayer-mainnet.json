@@ -6,9 +6,9 @@
     "explorer": "https://www.oklink.com/xlayer"
   },
   "deployer": "0x1Edea596E826293F278D91D098cf7fB1f653F1C8",
-  "timestamp": "2025-08-18T02:26:40.138Z",
+  "timestamp": "2025-08-19T08:08:54.396Z",
   "contract": {
-    "address": "0xF6637254Cceb1484Db01B57f90DdB0B6094e4407",
+    "address": "0x7415e413f49f0AE94D741b8d9D3cBAA362EF1099",
     "name": "LotteryGame",
     "currentToken": "0x798095d5BF06edeF0aEB82c10DCDa5a92f58834E",
     "gameConfig": {
