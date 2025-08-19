@@ -1,0 +1,70 @@
+{
+  "network": {
+    "name": "X Layer Mainnet",
+    "chainId": 196,
+    "rpcUrl": "https://rpc.xlayer.tech",
+    "explorer": "https://www.oklink.com/xlayer"
+  },
+  "deployer": "0x1Edea596E826293F278D91D098cf7fB1f653F1C8",
+  "timestamp": "2025-08-18T02:26:40.138Z",
+  "contract": {
+    "address": "0xF6637254Cceb1484Db01B57f90DdB0B6094e4407",
+    "name": "LotteryGame",
+    "currentToken": "0x798095d5BF06edeF0aEB82c10DCDa5a92f58834E",
+    "gameConfig": {
+      "minBet": "1.0",
+      "maxBet": "1000.0",
+      "houseFeePercentage": "500",
+      "isActive": true
+    },
+    "quickBetOptions": [
+      "1.0",
+      "5.0",
+      "10.0",
+      "50.0",
+      "100.0"
+    ],
+    "payoutRates": [
+      {
+        "symbol": "Cherry",
+        "multiplier": 2
+      },
+      {
+        "symbol": "Lemon",
+        "multiplier": 3
+      },
+      {
+        "symbol": "Orange",
+        "multiplier": 5
+      },
+      {
+        "symbol": "Plum",
+        "multiplier": 8
+      },
+      {
+        "symbol": "Bell",
+        "multiplier": 10
+      },
+      {
+        "symbol": "Bar",
+        "multiplier": 15
+      },
+      {
+        "symbol": "Seven",
+        "multiplier": 25
+      },
+      {
+        "symbol": "Jackpot",
+        "multiplier": 100
+      }
+    ]
+  },
+  "features": [
+    "代币切换支持",
+    "用户注册系统",
+    "抽奖游戏",
+    "奖励累计",
+    "快捷下注",
+    "管理员功能"
+  ]
+}

@@ -1,0 +1,16 @@
+{
+  "network": "xlayer-mainnet",
+  "contractName": "XLuckyCoin",
+  "contractAddress": "0x798095d5BF06edeF0aEB82c10DCDa5a92f58834E",
+  "deployerAddress": "0x1Edea596E826293F278D91D098cf7fB1f653F1C8",
+  "deploymentTime": "2025-08-18T07:50:50.490Z",
+  "transactionHash": "0x7ee59e3680a8f8c9c5c6f7324f67abde5ea7108579d0986c45751bda43bbdc4d",
+  "blockNumber": null,
+  "tokenInfo": {
+    "name": "XLuckyCoin",
+    "symbol": "XLC",
+    "decimals": "18",
+    "totalSupply": "1000000000000000000000000000",
+    "totalSupplyFormatted": "1000000000.0 XLC"
+  }
+}

@@ -1,0 +1,44 @@
+{
+  "name": "bonk-games-xlayer-simple",
+  "version": "1.0.0",
+  "description": "BONK Games Simplified Version for X Layer Mainnet",
+  "main": "index.js",
+  "scripts": {
+    "compile": "hardhat compile",
+    "test": "hardhat test",
+    "debug:env": "node scripts/debug-env.js",
+    "test:rpc": "node scripts/test-rpc.js",
+    "test:connection": "hardhat run scripts/test-connection.js --network xlayer-mainnet",
+    "deploy:mainnet": "hardhat run scripts/deploy.js --network xlayer-mainnet",
+    "deploy:test-token": "hardhat run scripts/deploy-test-token.js --network xlayer-mainnet",
+    "setup:token": "hardhat run scripts/setup-token.js --network xlayer-mainnet",
+    "extract:abi": "node scripts/extract-abi.js",
+    "verify:mainnet": "hardhat run scripts/verify.js --network xlayer-mainnet",
+    "node": "hardhat node",
+    "clean": "hardhat clean",
+    "frontend": "cd frontend && npm start",
+    "dev": "npm run compile && npm run test"
+  },
+  "devDependencies": {
+    "@nomicfoundation/hardhat-toolbox": "^4.0.0",
+    "@nomicfoundation/hardhat-verify": "^2.0.0",
+    "@openzeppelin/contracts": "^5.4.0",
+    "hardhat": "^2.19.0",
+    "hardhat-gas-reporter": "^1.0.9",
+    "solidity-coverage": "^0.8.5"
+  },
+  "dependencies": {
+    "dotenv": "^16.3.1",
+    "ethers": "^6.8.0",
+    "web3": "^4.16.0"
+  },
+  "keywords": [
+    "blockchain",
+    "xlayer",
+    "lottery",
+    "gaming",
+    "web3"
+  ],
+  "author": "BONK Games Team",
+  "license": "MIT"
+}
