@@ -364,12 +364,33 @@ function App() {
         setContract(gameContract);
         setTokenContract(token);
 
-        // Load user data and contract balance
+        // Load user data and contract balance with retry mechanism
+        console.log('📊 Loading user data...');
         await loadUserData(accounts[0], gameContract, token);
+
+        console.log('💰 Loading contract balance...');
         await loadContractBalance(gameContract, token);
 
-        // Load leaderboard data
+        console.log('🏆 Loading leaderboard data...');
         await loadLeaderboardData();
+
+        // Double-check registration status after loading
+        try {
+          const user = await gameContract.methods.users(accounts[0]).call();
+          console.log('👤 Final user check:', user);
+
+          if (user.isRegistered) {
+            setIsRegistered(true);
+            setShowRegister(false);
+            console.log('✅ User is registered, showing game interface');
+          } else {
+            setIsRegistered(false);
+            setShowRegister(true);
+            console.log('📝 User not registered, showing registration form');
+          }
+        } catch (error) {
+          console.error('Error checking final registration status:', error);
+        }
 
       } catch (error) {
         console.error('Failed to initialize wallet:', error);
@@ -773,45 +794,84 @@ function App() {
 
       console.log('✅ Registration transaction successful:', tx.transactionHash);
 
-      // Wait a moment for blockchain to update
-      await new Promise(resolve => setTimeout(resolve, 2000));
+      // Wait for blockchain confirmation
+      await new Promise(resolve => setTimeout(resolve, 3000));
 
-      // Reload user data to get updated registration status
-      await loadUserData(account, contract, tokenContract);
-      await loadContractBalance(contract, tokenContract);
+      // Force reload user data multiple times to ensure state update
+      let registrationConfirmed = false;
+      let attempts = 0;
+      const maxAttempts = 5;
 
-      // Load leaderboard data
-      await loadLeaderboardData();
+      while (!registrationConfirmed && attempts < maxAttempts) {
+        attempts++;
+        console.log(`🔄 Verification attempt ${attempts}/${maxAttempts}`);
 
-      // Double-check registration status
-      const user = await contract.methods.users(account).call();
-      if (user.isRegistered) {
-        setIsRegistered(true);
-        setShowRegister(false);
-        console.log('✅ Registration confirmed on blockchain');
+        try {
+          // Reload user data
+          await loadUserData(account, contract, tokenContract);
 
-        if (skipNickname) {
-          console.log('Auto-registered with nickname:', finalNickname);
-        } else {
-          alert('Registration successful! Welcome to XLayer Slot!');
+          // Check registration status directly from contract
+          const user = await contract.methods.users(account).call();
+          console.log('📊 User data from contract:', user);
+
+          if (user.isRegistered) {
+            registrationConfirmed = true;
+
+            // Update all states
+            setIsRegistered(true);
+            setShowRegister(false);
+            setUserInfo(user);
+
+            // Load additional data
+            await loadContractBalance(contract, tokenContract);
+            await loadLeaderboardData();
+
+            console.log('✅ Registration confirmed and states updated');
+
+            if (skipNickname) {
+              console.log('Auto-registered with nickname:', finalNickname);
+            } else {
+              alert('Registration successful! Welcome to XLayer Slot!');
+            }
+            break;
+          } else {
+            console.log('⏳ Registration not yet confirmed, retrying...');
+            await new Promise(resolve => setTimeout(resolve, 2000));
+          }
+        } catch (error) {
+          console.log('⚠️ Error checking registration status:', error);
+          await new Promise(resolve => setTimeout(resolve, 2000));
         }
-      } else {
-        throw new Error('Registration not confirmed on blockchain');
+      }
+
+      if (!registrationConfirmed) {
+        throw new Error('Registration confirmation timeout');
       }
 
     } catch (error) {
       console.error('❌ Registration failed:', error);
 
-      // Reset registration state on failure
-      setIsRegistered(false);
-
       if (error.message.includes('User already registered')) {
-        // User is already registered, just update the state
-        setIsRegistered(true);
-        setShowRegister(false);
-        await loadUserData(account, contract, tokenContract);
-        console.log('✅ User was already registered');
+        // User is already registered, force update state
+        console.log('🔄 User already registered, updating state...');
+
+        try {
+          const user = await contract.methods.users(account).call();
+          if (user.isRegistered) {
+            setIsRegistered(true);
+            setShowRegister(false);
+            setUserInfo(user);
+            await loadUserData(account, contract, tokenContract);
+            await loadContractBalance(contract, tokenContract);
+            await loadLeaderboardData();
+            console.log('✅ State updated for existing user');
+          }
+        } catch (updateError) {
+          console.error('Failed to update state for existing user:', updateError);
+        }
       } else {
+        // Reset registration state on failure
+        setIsRegistered(false);
         alert('Registration failed. Please try again.');
       }
     } finally {
