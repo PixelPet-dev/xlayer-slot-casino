@@ -83,8 +83,8 @@ contract LotteryGame is Ownable, Pausable, ReentrancyGuard {
         bool executed;
     }
     mapping(address => Commitment) public commitments;
-    uint256 public constant REVEAL_WINDOW = 300; // 5分钟揭示窗口
-    uint256 public constant MIN_COMMIT_TIME = 60; // 最少等待1分钟
+    uint256 public constant REVEAL_WINDOW = 60; // 1分钟揭示窗口
+    uint256 public constant MIN_COMMIT_TIME = 3; // 最少等待3秒
 
     // 速率限制
     mapping(address => uint256) public lastGameTime;
