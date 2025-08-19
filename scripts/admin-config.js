@@ -13,14 +13,20 @@ async function main() {
     console.log("💰 管理员余额:", ethers.formatEther(await provider.getBalance(adminWallet.address)), "OKB");
     
     // 合约地址和ABI
-    const contractAddress = "0x356F8378bE4bE92ecBF2961efA01143974daD45C";
+    const contractAddress = "0x619Dd810e1f5Fb87b221810594fFB0654d9FFF6e";
     const contractABI = [
         "function updateGameConfig(uint256 _minBet, uint256 _maxBet, uint256 _houseFeePercentage, bool _isActive) external",
         "function updateQuickBetOptions(uint256[] memory _options) external",
         "function updateTokenContract(address _newTokenContract) external",
+        "function updateSecurityConfig(uint256 _minCommitTime, uint256 _revealWindow, uint256 _minGameInterval, uint256 _maxGamesPerHour, uint256 _rateLimitWindow) external",
         "function gameConfig() external view returns (uint256 minBet, uint256 maxBet, uint256 houseFeePercentage, bool isActive)",
         "function quickBetOptions(uint256) external view returns (uint256)",
-        "function owner() external view returns (address)"
+        "function owner() external view returns (address)",
+        "function minCommitTime() external view returns (uint256)",
+        "function revealWindow() external view returns (uint256)",
+        "function minGameInterval() external view returns (uint256)",
+        "function maxGamesPerHour() external view returns (uint256)",
+        "function rateLimitWindow() external view returns (uint256)"
     ];
     
     // 连接合约
@@ -74,8 +80,31 @@ async function main() {
     quickBetOptions.forEach((option, index) => {
         console.log(`  ${index + 1}. ${ethers.formatEther(option)} XLC`);
     });
+
+    // 4. 配置安全参数
+    console.log("- 配置安全参数...");
+    const minCommitTime = 3;      // 3秒等待时间
+    const revealWindow = 3;       // 3秒揭示窗口
+    const minGameInterval = 3;    // 3秒游戏间隔
+    const maxGamesPerHour = 10000; // 每小时10000次
+    const rateLimitWindow = 3600; // 1小时窗口
+
+    const tx4 = await contract.updateSecurityConfig(
+        minCommitTime,
+        revealWindow,
+        minGameInterval,
+        maxGamesPerHour,
+        rateLimitWindow
+    );
+    await tx4.wait();
+    console.log("✅ 安全参数配置完成:");
+    console.log("  - 提交等待时间:", minCommitTime, "秒");
+    console.log("  - 揭示窗口:", revealWindow, "秒");
+    console.log("  - 游戏间隔:", minGameInterval, "秒");
+    console.log("  - 小时限制:", maxGamesPerHour, "次");
+    console.log("  - 限制窗口:", rateLimitWindow / 3600, "小时");
     
-    // 4. 验证配置
+    // 5. 验证配置
     console.log("\n🔍 验证配置结果...");
     const gameConfig = await contract.gameConfig();
     console.log("📊 当前游戏配置:");
@@ -83,17 +112,33 @@ async function main() {
     console.log("  - 最大下注:", ethers.formatEther(gameConfig.maxBet), "XLC");
     console.log("  - 平台费率:", gameConfig.houseFeePercentage.toString() / 100, "%");
     console.log("  - 游戏状态:", gameConfig.isActive ? "✅ 激活" : "❌ 暂停");
+
+    // 验证安全配置
+    const securityConfig = {
+        minCommitTime: await contract.minCommitTime(),
+        revealWindow: await contract.revealWindow(),
+        minGameInterval: await contract.minGameInterval(),
+        maxGamesPerHour: await contract.maxGamesPerHour(),
+        rateLimitWindow: await contract.rateLimitWindow()
+    };
+    console.log("🛡️ 当前安全配置:");
+    console.log("  - 提交等待:", securityConfig.minCommitTime.toString(), "秒");
+    console.log("  - 揭示窗口:", securityConfig.revealWindow.toString(), "秒");
+    console.log("  - 游戏间隔:", securityConfig.minGameInterval.toString(), "秒");
+    console.log("  - 小时限制:", securityConfig.maxGamesPerHour.toString(), "次");
+    console.log("  - 限制窗口:", (securityConfig.rateLimitWindow / 3600n).toString(), "小时");
     
     console.log("\n🎉 合约配置完成！");
     console.log("🔗 合约地址:", contractAddress);
     console.log("🔗 浏览器查看:", `https://www.oklink.com/xlayer/address/${contractAddress}`);
     
     console.log("\n🛡️ 安全功能状态:");
-    console.log("✅ 提交-揭示机制: 3秒等待时间");
+    console.log("✅ 提交-揭示机制: 3秒等待 + 3秒揭示窗口");
     console.log("✅ 增强随机数: 100种子池");
-    console.log("✅ 速率限制: 3秒间隔, 100次/小时");
+    console.log("✅ 速率限制: 3秒间隔, 10000次/小时");
     console.log("✅ 排行榜系统: 已激活");
     console.log("✅ 紧急提取: 管理员可用");
+    console.log("✅ 参数可配置: 无需重新部署合约");
 }
 
 main()

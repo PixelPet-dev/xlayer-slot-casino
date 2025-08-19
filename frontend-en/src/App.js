@@ -15,9 +15,9 @@ const XLAYER_CONFIG = {
   blockExplorerUrls: ['https://www.oklink.com/xlayer'],
 };
 
-// Contract Configuration - Updated with ENHANCED SECURITY FEATURES
+// Contract Configuration - FINAL PRODUCTION VERSION
 const CONTRACT_CONFIG = {
-  address: '0x356F8378bE4bE92ecBF2961efA01143974daD45C', // 🛡️ NEW: Enhanced Security Contract
+  address: '0x619Dd810e1f5Fb87b221810594fFB0654d9FFF6e', // 🚀 FINAL: Configurable Security Contract
   tokenAddress: '0x798095d5BF06edeF0aEB82c10DCDa5a92f58834E',
   abi: [
     {
@@ -184,6 +184,41 @@ const CONTRACT_CONFIG = {
         {"internalType": "uint256", "name": "nextGameTime", "type": "uint256"},
         {"internalType": "bool", "name": "canPlay", "type": "bool"}
       ],
+      "stateMutability": "view",
+      "type": "function"
+    },
+    // ⚙️ Security Configuration Functions
+    {
+      "inputs": [
+        {"internalType": "uint256", "name": "_minCommitTime", "type": "uint256"},
+        {"internalType": "uint256", "name": "_revealWindow", "type": "uint256"},
+        {"internalType": "uint256", "name": "_minGameInterval", "type": "uint256"},
+        {"internalType": "uint256", "name": "_maxGamesPerHour", "type": "uint256"},
+        {"internalType": "uint256", "name": "_rateLimitWindow", "type": "uint256"}
+      ],
+      "name": "updateSecurityConfig",
+      "outputs": [],
+      "stateMutability": "nonpayable",
+      "type": "function"
+    },
+    {
+      "inputs": [],
+      "name": "minCommitTime",
+      "outputs": [{"internalType": "uint256", "name": "", "type": "uint256"}],
+      "stateMutability": "view",
+      "type": "function"
+    },
+    {
+      "inputs": [],
+      "name": "revealWindow",
+      "outputs": [{"internalType": "uint256", "name": "", "type": "uint256"}],
+      "stateMutability": "view",
+      "type": "function"
+    },
+    {
+      "inputs": [],
+      "name": "maxGamesPerHour",
+      "outputs": [{"internalType": "uint256", "name": "", "type": "uint256"}],
       "stateMutability": "view",
       "type": "function"
     }

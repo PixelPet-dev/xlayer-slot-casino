@@ -83,16 +83,16 @@ contract LotteryGame is Ownable, Pausable, ReentrancyGuard {
         bool executed;
     }
     mapping(address => Commitment) public commitments;
-    uint256 public constant REVEAL_WINDOW = 60; // 1分钟揭示窗口
-    uint256 public constant MIN_COMMIT_TIME = 3; // 最少等待3秒
+    uint256 public revealWindow = 3; // 3秒揭示窗口 (可配置)
+    uint256 public minCommitTime = 3; // 最少等待3秒 (可配置)
 
-    // 速率限制
+    // 速率限制 (可配置)
     mapping(address => uint256) public lastGameTime;
     mapping(address => uint256) public gamesInWindow;
     mapping(address => uint256) public windowStartTime;
-    uint256 public constant RATE_LIMIT_WINDOW = 3600; // 1小时窗口
-    uint256 public constant MAX_GAMES_PER_HOUR = 100; // 每小时最多100次游戏
-    uint256 public constant MIN_GAME_INTERVAL = 3; // 最少3秒间隔
+    uint256 public rateLimitWindow = 3600; // 1小时窗口 (可配置)
+    uint256 public maxGamesPerHour = 10000; // 每小时最多10000次游戏 (可配置)
+    uint256 public minGameInterval = 3; // 最少3秒间隔 (可配置)
 
     // 增强随机数种子池
     uint256[] private randomSeedPool;
@@ -140,6 +140,9 @@ contract LotteryGame is Ownable, Pausable, ReentrancyGuard {
     // 随机数种子事件
     event SeedPoolUpdated(uint256 newSeedsCount);
 
+    // 安全配置事件
+    event SecurityConfigUpdated(uint256 minCommitTime, uint256 revealWindow, uint256 minGameInterval, uint256 maxGamesPerHour, uint256 rateLimitWindow);
+
 
     
     modifier onlyRegisteredUser() {
@@ -160,23 +163,23 @@ contract LotteryGame is Ownable, Pausable, ReentrancyGuard {
 
     modifier rateLimited() {
         // 检查最小游戏间隔
-        require(block.timestamp >= lastGameTime[msg.sender] + MIN_GAME_INTERVAL, "Game too frequent");
+        require(block.timestamp >= lastGameTime[msg.sender] + minGameInterval, "Game too frequent");
 
         // 检查小时内游戏次数限制
-        if (block.timestamp >= windowStartTime[msg.sender] + RATE_LIMIT_WINDOW) {
+        if (block.timestamp >= windowStartTime[msg.sender] + rateLimitWindow) {
             // 重置窗口
             windowStartTime[msg.sender] = block.timestamp;
             gamesInWindow[msg.sender] = 0;
         }
 
-        require(gamesInWindow[msg.sender] < MAX_GAMES_PER_HOUR, "Hourly game limit exceeded");
+        require(gamesInWindow[msg.sender] < maxGamesPerHour, "Hourly game limit exceeded");
 
         // 更新速率限制状态
         lastGameTime[msg.sender] = block.timestamp;
         gamesInWindow[msg.sender]++;
 
-        if (gamesInWindow[msg.sender] >= MAX_GAMES_PER_HOUR) {
-            emit RateLimitExceeded(msg.sender, gamesInWindow[msg.sender], RATE_LIMIT_WINDOW);
+        if (gamesInWindow[msg.sender] >= maxGamesPerHour) {
+            emit RateLimitExceeded(msg.sender, gamesInWindow[msg.sender], rateLimitWindow);
         }
 
         _;
@@ -890,6 +893,31 @@ contract LotteryGame is Ownable, Pausable, ReentrancyGuard {
     }
 
     /**
+     * @dev 配置安全参数 (管理员功能)
+     */
+    function updateSecurityConfig(
+        uint256 _minCommitTime,
+        uint256 _revealWindow,
+        uint256 _minGameInterval,
+        uint256 _maxGamesPerHour,
+        uint256 _rateLimitWindow
+    ) external onlyOwner {
+        require(_minCommitTime > 0, "Min commit time must be > 0");
+        require(_revealWindow > 0, "Reveal window must be > 0");
+        require(_minGameInterval > 0, "Min game interval must be > 0");
+        require(_maxGamesPerHour > 0, "Max games per hour must be > 0");
+        require(_rateLimitWindow > 0, "Rate limit window must be > 0");
+
+        minCommitTime = _minCommitTime;
+        revealWindow = _revealWindow;
+        minGameInterval = _minGameInterval;
+        maxGamesPerHour = _maxGamesPerHour;
+        rateLimitWindow = _rateLimitWindow;
+
+        emit SecurityConfigUpdated(_minCommitTime, _revealWindow, _minGameInterval, _maxGamesPerHour, _rateLimitWindow);
+    }
+
+    /**
      * @dev 提交游戏承诺 (提交-揭示机制第一步)
      */
     function commitGame(bytes32 _commitHash, uint256 _betAmount)
@@ -932,8 +960,8 @@ contract LotteryGame is Ownable, Pausable, ReentrancyGuard {
         require(commitment.commitTime > 0, "No commitment found");
         require(!commitment.revealed, "Already revealed");
         require(!commitment.executed, "Already executed");
-        require(block.timestamp >= commitment.commitTime + MIN_COMMIT_TIME, "Commit time not elapsed");
-        require(block.timestamp <= commitment.commitTime + REVEAL_WINDOW, "Reveal window expired");
+        require(block.timestamp >= commitment.commitTime + minCommitTime, "Commit time not elapsed");
+        require(block.timestamp <= commitment.commitTime + revealWindow, "Reveal window expired");
 
         // 验证承诺
         bytes32 hash = keccak256(abi.encodePacked(msg.sender, _nonce, commitment.betAmount));
@@ -983,7 +1011,7 @@ contract LotteryGame is Ownable, Pausable, ReentrancyGuard {
         Commitment storage commitment = commitments[msg.sender];
 
         require(commitment.commitTime > 0, "No commitment found");
-        require(block.timestamp > commitment.commitTime + REVEAL_WINDOW, "Commitment not expired");
+        require(block.timestamp > commitment.commitTime + revealWindow, "Commitment not expired");
         require(!commitment.executed, "Already executed");
 
         // 退还代币
@@ -1070,10 +1098,10 @@ contract LotteryGame is Ownable, Pausable, ReentrancyGuard {
         executed = commitment.executed;
 
         if (commitTime > 0) {
-            canReveal = block.timestamp >= commitTime + MIN_COMMIT_TIME &&
-                       block.timestamp <= commitTime + REVEAL_WINDOW &&
+            canReveal = block.timestamp >= commitTime + minCommitTime &&
+                       block.timestamp <= commitTime + revealWindow &&
                        !revealed && !executed;
-            isExpired = block.timestamp > commitTime + REVEAL_WINDOW && !executed;
+            isExpired = block.timestamp > commitTime + revealWindow && !executed;
         }
     }
 
@@ -1090,13 +1118,13 @@ contract LotteryGame is Ownable, Pausable, ReentrancyGuard {
         lastGame = lastGameTime[user];
         gamesThisHour = gamesInWindow[user];
         windowStart = windowStartTime[user];
-        nextGameTime = lastGame + MIN_GAME_INTERVAL;
+        nextGameTime = lastGame + minGameInterval;
 
         // 检查是否在新窗口
-        if (block.timestamp >= windowStart + RATE_LIMIT_WINDOW) {
+        if (block.timestamp >= windowStart + rateLimitWindow) {
             gamesThisHour = 0;
         }
 
-        canPlay = block.timestamp >= nextGameTime && gamesThisHour < MAX_GAMES_PER_HOUR;
+        canPlay = block.timestamp >= nextGameTime && gamesThisHour < maxGamesPerHour;
     }
 }
