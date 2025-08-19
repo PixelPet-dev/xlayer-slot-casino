@@ -15,7 +15,7 @@ const AudioManager = React.forwardRef(({ isPlaying, onToggle }, ref) => {
   useEffect(() => {
     // 尝试创建BGM音频对象 (优先使用 bgm.mp3，备用 kung-fu-bgm.mp3)
     const tryLoadBGM = (filename) => {
-      const bgmAudio = new Audio(`/xlayerslot/audio/${filename}`);
+      const bgmAudio = new Audio(`${process.env.PUBLIC_URL}/audio/${filename}`);
       bgmAudio.loop = true;
       bgmAudio.volume = volume;
 
@@ -45,7 +45,7 @@ const AudioManager = React.forwardRef(({ isPlaying, onToggle }, ref) => {
     // 创建中奖/未中奖音效对象
     try {
       // 中奖音效
-      winSoundRef.current = new Audio('/xlayerslot/audio/win.mp3');
+      winSoundRef.current = new Audio(`${process.env.PUBLIC_URL}/audio/win.mp3`);
       winSoundRef.current.volume = volume;
       winSoundRef.current.addEventListener('ended', () => {
         console.log('中奖音效播放完毕，恢复BGM');
@@ -53,7 +53,7 @@ const AudioManager = React.forwardRef(({ isPlaying, onToggle }, ref) => {
       });
 
       // 未中奖音效
-      loseSoundRef.current = new Audio('/xlayerslot/audio/lose.mp3');
+      loseSoundRef.current = new Audio(`${process.env.PUBLIC_URL}/audio/lose.mp3`);
       loseSoundRef.current.volume = volume;
       loseSoundRef.current.addEventListener('ended', () => {
         console.log('未中奖音效播放完毕，恢复BGM');
@@ -61,7 +61,7 @@ const AudioManager = React.forwardRef(({ isPlaying, onToggle }, ref) => {
       });
 
       // 可选的转轮音效
-      spinSoundRef.current = new Audio('/xlayerslot/audio/spin-sound.mp3');
+      spinSoundRef.current = new Audio(`${process.env.PUBLIC_URL}/audio/spin-sound.mp3`);
       spinSoundRef.current.volume = volume * 0.8;
 
     } catch (error) {

@@ -827,7 +827,7 @@ function App() {
         <div className="text-center mb-8">
           <h1 className="text-6xl font-bold mb-2 text-okx-white flex items-center justify-center gap-4">
             <img
-              src="/xlayerslot/audio/logo.png"
+              src={`${process.env.PUBLIC_URL}/audio/logo.png`}
               alt="XLayer Slot Logo"
               className="w-16 h-16 object-contain"
             />
