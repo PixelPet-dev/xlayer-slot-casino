@@ -44,8 +44,12 @@ async function main() {
     
     console.log("\n⚙️ 开始配置合约参数...");
     
-    // 1. 设置代币合约 (跳过，已设置)
-    console.log("- 代币合约已设置，跳过...");
+    // 1. 更新代币合约
+    console.log("- 更新代币合约...");
+    const tokenAddress = "0xa7046145C871203F5331cE5bB5B4a5dE42cBD80c";
+    const tx1 = await contract.updateTokenContract(tokenAddress);
+    await tx1.wait();
+    console.log("✅ 代币合约更新完成:", tokenAddress);
     
     // 2. 配置游戏参数
     console.log("- 配置游戏参数...");

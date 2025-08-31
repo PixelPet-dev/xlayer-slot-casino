@@ -18,7 +18,7 @@ const XLAYER_CONFIG = {
 // Contract Configuration - FINAL PRODUCTION VERSION
 const CONTRACT_CONFIG = {
   address: '0x619Dd810e1f5Fb87b221810594fFB0654d9FFF6e', // 🚀 FINAL: Configurable Security Contract
-  tokenAddress: '0x798095d5BF06edeF0aEB82c10DCDa5a92f58834E',
+  tokenAddress: '0xa7046145C871203F5331cE5bB5B4a5dE42cBD80c', // 🔄 NEW: Updated Token Contract
   abi: [
     {
       "inputs": [{"internalType": "uint256", "name": "betAmount", "type": "uint256"}],
