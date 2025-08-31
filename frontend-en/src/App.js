@@ -1170,12 +1170,12 @@ function App() {
 
   return (
     <div className="min-h-screen bg-okx-black text-okx-white">
-      {/* 音频管理器 */}
-      <AudioManager
+      {/* 音频管理器 - 已隐藏 */}
+      {/* <AudioManager
         ref={audioManagerRef}
         isPlaying={isBgmPlaying}
         onToggle={() => setIsBgmPlaying(!isBgmPlaying)}
-      />
+      /> */}
 
       <div className="container mx-auto px-4 py-8">
         {/* Header */}
