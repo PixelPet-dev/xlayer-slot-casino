@@ -1191,6 +1191,19 @@ function App() {
           <p className="text-xl text-okx-muted">Blockchain Casino Game</p>
           {account && (
             <div className="mt-4 flex flex-col items-center space-y-2">
+              {/* Token Contract Address Button */}
+              <button
+                onClick={() => {
+                  navigator.clipboard.writeText(CONTRACT_CONFIG.tokenAddress);
+                  alert('Token contract address copied to clipboard!');
+                }}
+                className="w-full max-w-md flex items-center justify-center space-x-2 py-2 px-4 bg-blue-500/20 hover:bg-blue-500/30 text-blue-400 border border-blue-500/30 rounded-xl transition-all duration-300 hover:scale-105"
+              >
+                <span className="text-sm">📋</span>
+                <span className="text-sm font-medium">Copy Token Contract</span>
+                <span className="text-xs text-blue-300 font-mono">{CONTRACT_CONFIG.tokenAddress.slice(0, 6)}...{CONTRACT_CONFIG.tokenAddress.slice(-4)}</span>
+              </button>
+
               <div className="bg-green-500/20 border border-green-500/50 rounded-full px-4 py-2 flex items-center space-x-2">
                 <div className="w-2 h-2 bg-green-500 rounded-full animate-pulse"></div>
                 <span className="text-sm text-green-400 font-medium">Connected to XLayer</span>
