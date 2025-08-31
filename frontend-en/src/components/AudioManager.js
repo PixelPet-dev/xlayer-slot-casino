@@ -1,7 +1,7 @@
 import React, { useState, useEffect, useRef } from 'react';
 import { playSpinSoundEffect, playWinSoundEffect, playLoseSoundEffect, playJackpotSoundEffect, createKungFuBGM } from '../utils/audioUtils';
 
-const AudioManager = React.forwardRef(({ isPlaying, onToggle }, ref) => {
+const AudioManager = React.forwardRef(({ isPlaying, onToggle, hideFloatingButton = false }, ref) => {
   const [volume] = useState(0.3); // 固定音量30%
   const [bgmLoaded, setBgmLoaded] = useState(false);
   const [currentlyPlaying, setCurrentlyPlaying] = useState('none'); // 'bgm', 'win', 'lose', 'none'
@@ -270,6 +270,11 @@ const AudioManager = React.forwardRef(({ isPlaying, onToggle }, ref) => {
   }, [playSpinSound, playWinSound, playLoseSound]);
 
 
+
+  // 如果隐藏悬浮按钮，则返回null但保持音频功能
+  if (hideFloatingButton) {
+    return null;
+  }
 
   return (
     <div className="fixed top-4 right-4 z-50 bg-okx-dark/90 backdrop-blur-sm rounded-lg p-3 border border-okx-border">

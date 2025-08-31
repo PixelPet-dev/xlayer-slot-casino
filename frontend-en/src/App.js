@@ -1170,12 +1170,13 @@ function App() {
 
   return (
     <div className="min-h-screen bg-okx-black text-okx-white">
-      {/* 音频管理器 - 已隐藏 */}
-      {/* <AudioManager
+      {/* 音频管理器 - 隐藏悬浮按钮但保留BGM */}
+      <AudioManager
         ref={audioManagerRef}
         isPlaying={isBgmPlaying}
         onToggle={() => setIsBgmPlaying(!isBgmPlaying)}
-      /> */}
+        hideFloatingButton={true}
+      />
 
       <div className="container mx-auto px-4 py-8">
         {/* Header */}
